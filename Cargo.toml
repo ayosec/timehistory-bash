@@ -1,0 +1,11 @@
+[package]
+name = "timehistory-bash"
+version = "0.1.0"
+edition = "2018"
+
+[dependencies]
+bash-builtins = "0"
+plthook = "0"
+
+[lib]
+crate-type = [ "cdylib" ]
