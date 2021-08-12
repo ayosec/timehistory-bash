@@ -6,6 +6,7 @@ license = "Apache-2.0"
 
 [dependencies]
 bash-builtins = "0"
+libc = "0"
 plthook = "0"
 
 [lib]
