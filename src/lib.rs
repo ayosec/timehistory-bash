@@ -5,6 +5,7 @@ use bash_builtins::{builtin_metadata, Args, Builtin, Result as BuiltinResult};
 builtin_metadata!(name = "timehistory", try_create = TimeHistory::new,);
 
 mod funcwrappers;
+mod ipc;
 
 #[allow(dead_code)]
 struct TimeHistory {
