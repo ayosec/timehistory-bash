@@ -16,10 +16,13 @@ pub struct SharedBuffer {
     len: usize,
 }
 
-/// Data at the beginning of the buffer
+/// Data at the beginning of the buffer.
+///
+/// `repr(C)` is added to ensure that the layout is not affected
+/// by the value of `N`.
+#[repr(C)]
 struct SharedBufferHeader<const N: usize> {
     mutex: UnsafeCell<libc::pthread_mutex_t>,
-    capacity: usize,
     cursor: usize,
     data: [u8; N],
 }
@@ -93,7 +96,6 @@ impl SharedBuffer {
 
             // Data for the underlying buffer.
             header.cursor = 0;
-            header.capacity = len - mem::size_of::<SharedBufferHeader<0>>();
         }
 
         Ok(SharedBuffer { buf, len })
@@ -105,7 +107,7 @@ impl SharedBuffer {
         header.mutex.get()
     }
 
-    /// Acquires a lock to data in the shared buffer.
+    /// Acquires a lock to the data in the shared buffer.
     pub fn lock(&self, timeout: Duration) -> io::Result<SharedBufferGuard> {
         let abstime = compute_abstime(timeout);
         let res = unsafe { libc::pthread_mutex_timedlock(self.mutex(), &abstime) };
@@ -151,7 +153,7 @@ fn compute_abstime(timeout: Duration) -> libc::timespec {
     ts
 }
 
-/// Guard for the shared buffer.
+/// Access to the data in the shared buffer.
 pub struct SharedBufferGuard<'a>(&'a SharedBuffer);
 
 impl SharedBufferGuard<'_> {
@@ -171,6 +173,10 @@ impl SharedBufferGuard<'_> {
         self.header_mut().data.as_mut_ptr()
     }
 
+    fn capacity(&self) -> usize {
+        self.0.len - mem::size_of::<SharedBufferHeader<0>>()
+    }
+
     /// Discard data in the shared buffer, and reset the write cursor to `0`.
     pub fn clear(&mut self) {
         self.header_mut().cursor = 0;
@@ -181,9 +187,10 @@ impl SharedBufferGuard<'_> {
     ///
     /// If the new position exceeds the capacity, it returns `false`.
     pub fn advance(&mut self, n: usize) -> bool {
+        let capacity = self.capacity();
         let header = self.header_mut();
         let cursor = header.cursor + n;
-        if cursor > header.capacity {
+        if cursor > capacity {
             return false;
         }
 
@@ -202,8 +209,7 @@ impl SharedBufferGuard<'_> {
     pub fn as_output(&mut self) -> &mut [u8] {
         let header = self.header();
         let cursor = header.cursor;
-        let capacity = header.capacity;
-        let len = capacity - cursor;
+        let len = self.capacity() - cursor;
 
         unsafe { slice::from_raw_parts_mut(self.data_mut().add(cursor), len) }
     }
@@ -222,6 +228,9 @@ mod tests {
     use super::*;
     use std::ptr;
     use std::sync::{Arc, Barrier};
+
+    const EXPECTED_HEADER_SIZE: usize =
+        mem::size_of::<libc::pthread_mutex_t>() + mem::size_of::<usize>();
 
     #[test]
     fn send_data() {
@@ -265,10 +274,7 @@ mod tests {
         assert_eq!(lock.as_output().len(), 0);
 
         let data = lock.as_input();
-        assert_eq!(
-            data.len(),
-            MIN_BUFFER_SIZE - mem::size_of::<SharedBufferHeader<0>>()
-        );
+        assert_eq!(data.len(), MIN_BUFFER_SIZE - EXPECTED_HEADER_SIZE);
 
         for (a, b) in data.iter().zip("ABCD".chars().cycle()) {
             assert_eq!(*a as char, b);
@@ -296,7 +302,7 @@ mod tests {
 
         let start = std::time::Instant::now();
         let lock_res = buffer.lock(Duration::from_millis(20));
-        assert!((20..50).contains(&start.elapsed().as_millis()));
+        assert!((20..120).contains(&start.elapsed().as_millis()));
         assert_eq!(lock_res.err().unwrap().kind(), std::io::ErrorKind::TimedOut);
     }
 }
