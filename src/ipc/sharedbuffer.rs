@@ -2,7 +2,6 @@
 
 use std::cell::UnsafeCell;
 use std::io;
-use std::marker::PhantomData;
 use std::mem::{self, MaybeUninit};
 use std::ptr;
 use std::slice;
@@ -11,6 +10,7 @@ use std::time::Duration;
 /// Minimum size for the shared buffer.
 const MIN_BUFFER_SIZE: usize = 4 * 1024;
 
+/// Buffer that can be shared between multiple processes.
 pub struct SharedBuffer {
     buf: *mut libc::c_void,
     len: usize,
@@ -23,6 +23,12 @@ struct SharedBufferHeader<const N: usize> {
     cursor: usize,
     data: [u8; N],
 }
+
+// It is safe to implement both `Send` and `Sync` because `SharedBuffer`
+// is equivalent to `Mutex<[u8; N]>`.
+
+unsafe impl Send for SharedBuffer {}
+unsafe impl Sync for SharedBuffer {}
 
 impl SharedBuffer {
     pub fn new(len: usize) -> io::Result<Self> {
@@ -55,10 +61,13 @@ impl SharedBuffer {
         unsafe {
             macro_rules! check {
                 ($e:expr) => {
-                    if $e != 0 {
-                        let err = Err(io::Error::last_os_error());
-                        libc::munmap(buf, len);
-                        return err;
+                    match $e {
+                        0 => (),
+
+                        e => {
+                            libc::munmap(buf, len);
+                            return Err(io::Error::from_raw_os_error(e));
+                        }
                     }
                 };
             }
@@ -82,7 +91,7 @@ impl SharedBuffer {
             header.mutex = UnsafeCell::new(libc::PTHREAD_MUTEX_INITIALIZER);
             check!(libc::pthread_mutex_init(header.mutex.get(), attr.as_ptr()));
 
-            // Fields to track written bytes.
+            // Data for the underlying buffer.
             header.cursor = 0;
             header.capacity = len - mem::size_of::<SharedBufferHeader<0>>();
         }
@@ -97,15 +106,15 @@ impl SharedBuffer {
     }
 
     /// Acquires a lock to data in the shared buffer.
-    pub fn lock(&self, _timeout: Duration) -> io::Result<SharedBufferGuard> {
-        if unsafe { libc::pthread_mutex_lock(self.mutex()) } != 0 {
-            return Err(io::Error::last_os_error());
+    pub fn lock(&self, timeout: Duration) -> io::Result<SharedBufferGuard> {
+        let abstime = compute_abstime(timeout);
+        let res = unsafe { libc::pthread_mutex_timedlock(self.mutex(), &abstime) };
+
+        if res != 0 {
+            return Err(io::Error::from_raw_os_error(res));
         }
 
-        Ok(SharedBufferGuard {
-            buf: self.buf,
-            shared_buffer: PhantomData,
-        })
+        Ok(SharedBufferGuard(self))
     }
 }
 
@@ -118,19 +127,40 @@ impl Drop for SharedBuffer {
     }
 }
 
-/// Guard for the shared buffer.
-pub struct SharedBufferGuard<'a> {
-    buf: *mut libc::c_void,
-    shared_buffer: PhantomData<&'a SharedBuffer>,
+/// Compute a timeout based on the `CLOCK_REALTIME` clock.
+fn compute_abstime(timeout: Duration) -> libc::timespec {
+    const NS_PER_SEC: libc::c_long = 1_000_000_000;
+
+    let mut ts = libc::timespec {
+        tv_sec: 0,
+        tv_nsec: 0,
+    };
+
+    let r = unsafe { libc::clock_gettime(libc::CLOCK_REALTIME, &mut ts) };
+
+    if r == 0 {
+        ts.tv_sec += timeout.as_secs() as libc::time_t;
+        ts.tv_nsec += timeout.subsec_nanos() as libc::c_long;
+
+        if ts.tv_nsec > NS_PER_SEC {
+            ts.tv_sec += 1;
+            ts.tv_nsec -= NS_PER_SEC;
+        }
+    }
+
+    ts
 }
+
+/// Guard for the shared buffer.
+pub struct SharedBufferGuard<'a>(&'a SharedBuffer);
 
 impl SharedBufferGuard<'_> {
     fn header(&self) -> &SharedBufferHeader<1> {
-        unsafe { &*self.buf.cast() }
+        unsafe { &*self.0.buf.cast() }
     }
 
     fn header_mut(&mut self) -> &mut SharedBufferHeader<1> {
-        unsafe { &mut *self.buf.cast() }
+        unsafe { &mut *self.0.buf.cast() }
     }
 
     fn data(&self) -> *const u8 {
@@ -191,6 +221,7 @@ impl Drop for SharedBufferGuard<'_> {
 mod tests {
     use super::*;
     use std::ptr;
+    use std::sync::{Arc, Barrier};
 
     #[test]
     fn send_data() {
@@ -245,5 +276,27 @@ mod tests {
 
         lock.clear();
         assert_eq!(lock.as_input().len(), 0);
+    }
+
+    #[test]
+    fn lock_timeouts() {
+        let barrier = Arc::new(Barrier::new(2));
+        let barrier2 = barrier.clone();
+
+        let buffer = Arc::new(SharedBuffer::new(MIN_BUFFER_SIZE).unwrap());
+        let buffer2 = buffer.clone();
+
+        std::thread::spawn(move || {
+            let lock: SharedBufferGuard = buffer2.lock(Duration::from_secs(1)).unwrap();
+            barrier2.wait();
+            std::mem::forget(lock);
+        });
+
+        barrier.wait();
+
+        let start = std::time::Instant::now();
+        let lock_res = buffer.lock(Duration::from_millis(20));
+        assert!((20..50).contains(&start.elapsed().as_millis()));
+        assert_eq!(lock_res.err().unwrap().kind(), std::io::ErrorKind::TimedOut);
     }
 }
