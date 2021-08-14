@@ -7,6 +7,8 @@ builtin_metadata!(name = "timehistory", try_create = TimeHistory::new,);
 mod funcwrappers;
 mod ipc;
 
+use std::time::Duration;
+
 #[allow(dead_code)]
 struct TimeHistory {
     fn_replacements: funcwrappers::Replacements,
@@ -14,6 +16,10 @@ struct TimeHistory {
 
 impl TimeHistory {
     fn new() -> Result<TimeHistory, Box<dyn std::error::Error>> {
+        if ipc::global_shared_buffer(Duration::from_millis(100)).is_none() {
+            return Err("shared buffer unavailable".into());
+        }
+
         let fn_replacements = funcwrappers::replace_functions()?;
         Ok(TimeHistory { fn_replacements })
     }

@@ -6,6 +6,7 @@ use std::marker::PhantomData;
 use std::mem::{self, MaybeUninit};
 use std::ptr;
 use std::slice;
+use std::time::Duration;
 
 /// Minimum size for the shared buffer.
 const MIN_BUFFER_SIZE: usize = 4 * 1024;
@@ -96,7 +97,7 @@ impl SharedBuffer {
     }
 
     /// Acquires a lock to data in the shared buffer.
-    pub fn lock(&self) -> io::Result<SharedBufferGuard> {
+    pub fn lock(&self, _timeout: Duration) -> io::Result<SharedBufferGuard> {
         if unsafe { libc::pthread_mutex_lock(self.mutex()) } != 0 {
             return Err(io::Error::last_os_error());
         }
@@ -193,6 +194,7 @@ mod tests {
 
     #[test]
     fn send_data() {
+        let lock_timeout = Duration::from_secs(1);
         let buffer = SharedBuffer::new(MIN_BUFFER_SIZE).unwrap();
 
         let mut pids = [0; 4];
@@ -203,7 +205,7 @@ mod tests {
             if *pid == 0 {
                 // Inside the forked process, loop until the buffer is filled.
                 loop {
-                    let mut lock = buffer.lock().unwrap();
+                    let mut lock = buffer.lock(lock_timeout).unwrap();
                     let data = lock.as_output();
 
                     if data.is_empty() {
@@ -228,7 +230,7 @@ mod tests {
         }
 
         // Check written data.
-        let mut lock = buffer.lock().unwrap();
+        let mut lock = buffer.lock(lock_timeout).unwrap();
         assert_eq!(lock.as_output().len(), 0);
 
         let data = lock.as_input();
