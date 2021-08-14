@@ -30,6 +30,6 @@ pub fn global_shared_buffer(timeout: Duration) -> Option<SharedBufferGuard<'stat
         }
     });
 
-    let buffer = unsafe { (&mut *BUFFER.as_mut_ptr()).as_mut() };
+    let buffer = unsafe { (&*BUFFER.as_ptr()).as_ref() };
     buffer.and_then(|b| b.lock(timeout).ok())
 }
