@@ -4,6 +4,7 @@ use bash_builtins::{builtin_metadata, Args, Builtin, Result as BuiltinResult};
 
 builtin_metadata!(name = "timehistory", try_create = TimeHistory::new,);
 
+mod history;
 mod ipc;
 mod procs;
 
@@ -30,22 +31,31 @@ impl Builtin for TimeHistory {
         args.no_options()?;
         args.finished()?;
 
-        let mut shared_buffer = match crate::ipc::global_shared_buffer(Duration::from_secs(1)) {
-            Some(sb) => sb,
-            None => {
-                bash_builtins::error!("shared buffer unavailable");
+        let history = match history::HISTORY.try_lock() {
+            Ok(l) => l,
+
+            Err(e) => {
+                bash_builtins::error!("history unavailable: {}", e);
                 return Err(bash_builtins::Error::ExitCode(1));
             }
         };
 
-        for event in ipc::events::ExecEvent::parse(shared_buffer.input()) {
-            println!(
-                "{} {} {} {:?}",
-                event.pid, event.start_time.tv_sec, event.start_time.tv_nsec, event.args
-            );
+        for entry in history.entries.iter().rev() {
+            print!("{:?} {:?}\n\t", entry.pid, entry.args);
+            match &entry.state {
+                history::State::Running { .. } => println!("running"),
+                history::State::Finished {
+                    running_time,
+                    rusage,
+                    status,
+                } => {
+                    println!(
+                        "{:?}\n\tstatus={} maxrss={}",
+                        running_time, status, rusage.ru_maxrss
+                    )
+                }
+            }
         }
-
-        shared_buffer.clear();
 
         Ok(())
     }

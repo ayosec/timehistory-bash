@@ -34,6 +34,7 @@ pub(super) unsafe extern "C" fn execve_wrapper(
     (execve_fn)(filename, argv, envp)
 }
 
+/// Send `execve` data to the shared buffer.
 unsafe fn write_event(
     mut buffer: crate::ipc::SharedBufferGuard,
     filename: *const c_char,
