@@ -6,6 +6,7 @@ use std::mem::MaybeUninit;
 use std::time::Duration;
 
 use crate::history;
+use crate::ipc::events::ExecEvent;
 
 /// Function to replace waitpid().
 pub(super) unsafe extern "C" fn waitpid_wrapper(
@@ -46,23 +47,15 @@ fn collect_execve_events() {
 
     let mut shared_buffer = match crate::ipc::global_shared_buffer(Duration::from_millis(50)) {
         Some(sb) => sb,
+
         None => {
             let _ = writeln!(stderr(), "timehistory: shared buffer unavailable");
             return;
         }
     };
 
-    for event in crate::ipc::events::ExecEvent::parse(shared_buffer.input()) {
-        let entry = history::Entry {
-            pid: event.pid,
-            start_time: event.start_time,
-            args: event.args,
-            state: history::State::Running {
-                start: event.monotonic_time,
-            },
-        };
-
-        history.push(entry);
+    for event in ExecEvent::parse(shared_buffer.input()) {
+        history.add_entry(event);
     }
 
     shared_buffer.clear();
@@ -95,7 +88,13 @@ fn store_process_result(
 
     // Compute elapsed time since start.
     let running_time = match &entry.state {
-        history::State::Running { start } => duration(&finish_time).checked_sub(duration(start)),
+        history::State::Running { start } => {
+            fn duration(ts: &libc::timespec) -> Duration {
+                Duration::new(ts.tv_sec as u64, ts.tv_nsec as u32)
+            }
+
+            duration(&finish_time).checked_sub(duration(start))
+        }
 
         _ => None,
     };
@@ -106,9 +105,4 @@ fn store_process_result(
         status,
         rusage,
     };
-}
-
-/// Convert a `libc::timespec` to a `Duration`.
-fn duration(ts: &libc::timespec) -> Duration {
-    Duration::new(ts.tv_sec as u64, ts.tv_nsec as u32)
 }

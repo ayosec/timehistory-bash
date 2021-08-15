@@ -41,7 +41,7 @@ impl Builtin for TimeHistory {
         };
 
         for entry in history.entries.iter().rev() {
-            print!("{:?} {:?}\n\t", entry.pid, entry.args);
+            print!("{} {:?} {:?}\n\t", entry.unique_id, entry.pid, entry.args);
             match &entry.state {
                 history::State::Running { .. } => println!("running"),
                 history::State::Finished {
