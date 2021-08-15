@@ -16,10 +16,17 @@ pub(super) unsafe extern "C" fn waitpid_wrapper(
     let mut rusage = MaybeUninit::zeroed();
     let ret = libc::wait4(pid, wstatus, options, rusage.as_mut_ptr());
 
+    // Get current time before doing anything else.
+    let finish_time = {
+        let mut ts = MaybeUninit::zeroed();
+        libc::clock_gettime(libc::CLOCK_MONOTONIC, ts.as_mut_ptr());
+        ts.assume_init()
+    };
+
     collect_execve_events();
 
     if ret > 0 {
-        store_process_result(ret, wstatus, rusage.assume_init());
+        store_process_result(ret, wstatus, finish_time, rusage.assume_init());
     }
 
     ret
@@ -62,14 +69,12 @@ fn collect_execve_events() {
 }
 
 /// Update a history entry to store data from the `wait4` result.
-fn store_process_result(pid: pid_t, wstatus: *mut c_int, rusage: libc::rusage) {
-    // Get current time before doing anything else.
-    let now = unsafe {
-        let mut ts = MaybeUninit::zeroed();
-        libc::clock_gettime(libc::CLOCK_MONOTONIC, ts.as_mut_ptr());
-        ts.assume_init()
-    };
-
+fn store_process_result(
+    pid: pid_t,
+    wstatus: *mut c_int,
+    finish_time: libc::timespec,
+    rusage: libc::rusage,
+) {
     // Locate the entry for this process in the history.
 
     let mut history = match history::HISTORY.try_lock() {
@@ -90,7 +95,7 @@ fn store_process_result(pid: pid_t, wstatus: *mut c_int, rusage: libc::rusage) {
 
     // Compute elapsed time since start.
     let running_time = match &entry.state {
-        history::State::Running { start } => duration(&now).checked_sub(duration(start)),
+        history::State::Running { start } => duration(&finish_time).checked_sub(duration(start)),
 
         _ => None,
     };
