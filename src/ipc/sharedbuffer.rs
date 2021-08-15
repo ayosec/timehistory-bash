@@ -59,7 +59,7 @@ impl SharedBuffer {
             return Err(io::Error::last_os_error());
         }
 
-        // Initialize the mutex between processes.
+        // Initialize a process-shared mutex.
 
         unsafe {
             macro_rules! check {
@@ -129,7 +129,7 @@ impl Drop for SharedBuffer {
     }
 }
 
-/// Compute a timeout based on the `CLOCK_REALTIME` clock.
+/// Compute a timeout based on the *realtime* clock.
 fn compute_abstime(timeout: Duration) -> libc::timespec {
     const NS_PER_SEC: libc::c_long = 1_000_000_000;
 
@@ -183,12 +183,13 @@ impl SharedBufferGuard<'_> {
     }
 
     /// Move the write cursor `n` bytes, usually called after updating the
-    /// shared buffer with the slice from [`as_output`].
+    /// shared buffer with the slice from [`output`].
     ///
     /// If the new position exceeds the capacity, it returns `false`.
     pub fn advance(&mut self, n: usize) -> bool {
         let capacity = self.capacity();
         let header = self.header_mut();
+
         let cursor = header.cursor + n;
         if cursor > capacity {
             return false;
@@ -199,14 +200,14 @@ impl SharedBufferGuard<'_> {
     }
 
     /// Returns a slice of the data written in the shared buffer.
-    pub fn as_input(&self) -> &[u8] {
+    pub fn input(&self) -> &[u8] {
         let cursor = self.header().cursor;
         unsafe { slice::from_raw_parts(self.data(), cursor) }
     }
 
     /// Returns a mutable slice to write data in the shared buffer. [`advance`]
     /// is required to update the write cursor.
-    pub fn as_output(&mut self) -> &mut [u8] {
+    pub fn output(&mut self) -> &mut [u8] {
         let header = self.header();
         let cursor = header.cursor;
         let len = self.capacity() - cursor;
@@ -246,7 +247,7 @@ mod tests {
                 // Inside the forked process, loop until the buffer is filled.
                 loop {
                     let mut lock = buffer.lock(lock_timeout).unwrap();
-                    let data = lock.as_output();
+                    let data = lock.output();
 
                     if data.is_empty() {
                         drop(lock);
@@ -271,9 +272,9 @@ mod tests {
 
         // Check written data.
         let mut lock = buffer.lock(lock_timeout).unwrap();
-        assert_eq!(lock.as_output().len(), 0);
+        assert_eq!(lock.output().len(), 0);
 
-        let data = lock.as_input();
+        let data = lock.input();
         assert_eq!(data.len(), MIN_BUFFER_SIZE - EXPECTED_HEADER_SIZE);
 
         for (a, b) in data.iter().zip("ABCD".chars().cycle()) {
@@ -281,7 +282,7 @@ mod tests {
         }
 
         lock.clear();
-        assert_eq!(lock.as_input().len(), 0);
+        assert_eq!(lock.input().len(), 0);
     }
 
     #[test]
