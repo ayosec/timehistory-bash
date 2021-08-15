@@ -2,10 +2,11 @@ pub mod events;
 pub mod sharedbuffer;
 
 use bash_builtins::error;
-use sharedbuffer::{SharedBuffer, SharedBufferGuard};
 use std::mem::MaybeUninit;
 use std::sync::Once;
 use std::time::Duration;
+
+pub use sharedbuffer::{SharedBuffer, SharedBufferGuard};
 
 /// Size for the shared buffer;
 const SHARED_BUFFER_SIZE: usize = 8 * 1024;

@@ -5,6 +5,8 @@ use plthook::{ObjectFile, Replacement};
 use std::mem::{self, MaybeUninit};
 use std::os::raw::{c_char, c_int};
 
+mod execve;
+
 /// Function signature for execve().
 type ExecveFn = extern "C" fn(*const c_char, *const *const c_char, *const *const c_char) -> c_int;
 
@@ -24,7 +26,7 @@ pub(crate) fn replace_functions() -> Result<Replacements, Box<dyn std::error::Er
 
     unsafe {
         let waitpid_fn = main_program.replace("waitpid", waitpid_wrapper as *const _)?;
-        let execve_fn = main_program.replace("execve", execve_wrapper as *const _)?;
+        let execve_fn = main_program.replace("execve", execve::execve_wrapper as *const _)?;
 
         EXECVE_FN = Some(mem::transmute(execve_fn.original_address()));
 
@@ -33,27 +35,6 @@ pub(crate) fn replace_functions() -> Result<Replacements, Box<dyn std::error::Er
             execve_fn,
         })
     }
-}
-
-/// Function to replace execve().
-extern "C" fn execve_wrapper(
-    filename: *const c_char,
-    argv: *const *const c_char,
-    envp: *const *const c_char,
-) -> c_int {
-    let execve_fn: ExecveFn = unsafe {
-        match &EXECVE_FN {
-            Some(f) => *f,
-            None => {
-                *libc::__errno_location() = libc::EFAULT;
-                return -1;
-            }
-        }
-    };
-
-    unsafe { dbg!(std::ffi::CStr::from_ptr(filename)) };
-
-    (execve_fn)(filename, argv, envp)
 }
 
 /// Function to replace waitpid().

@@ -1,4 +1,15 @@
 //! Events sent from forked processes.
+//!
+//! # Serialization Format
+//!
+//! Events are serialized to any byte buffer. Each event is written in the
+//! following format:
+//!
+//! * Size in bytes of the event (`u16`).
+//! * Process identifier (`pid_t`).
+//! * Monotonic time of the event (`timespec`).
+//! * Real time (wall-clock) of the event (`timespec`).
+//! * Arguments of the executed program (array of C strings).
 
 use std::ffi::{OsStr, OsString};
 use std::io::{self, Read, Seek, Write};
@@ -9,22 +20,61 @@ use std::os::unix::ffi::OsStrExt;
 const MAX_ARGUMENT_SIZE: usize = 256;
 
 /// Events from an `execve` function.
-///
-/// # Fields
-///
-/// * `u16`: size of the event body.
-/// * `pid_t`: PID of the process.
-/// * `timespec`: monotonic time when the event was created.
-/// * Finally, an array of NUL-terminated strings.
 pub struct ExecEvent {
-    pid: libc::pid_t,
-    start_time: libc::timespec,
-    args: Vec<OsString>,
+    pub pid: libc::pid_t,
+    pub monotonic_time: libc::timespec,
+    pub start_time: libc::timespec,
+    pub args: Vec<OsString>,
 }
 
 impl ExecEvent {
-    pub fn parse_buffer(buffer: &[u8]) -> impl Iterator<Item = ExecEvent> + '_ {
+    /// Extract events from the a byte buffer.
+    pub fn parse(buffer: &[u8]) -> impl Iterator<Item = ExecEvent> + '_ {
         ExecEventParser(buffer)
+    }
+
+    /// Serialize data for an `ExecEvent` value.
+    pub unsafe fn serialize<T>(
+        mut output: T,
+        pid: libc::pid_t,
+        monotonic_time: libc::timespec,
+        start_time: libc::timespec,
+        filename: *const libc::c_char,
+        argv: *const *const libc::c_char,
+    ) -> io::Result<usize>
+    where
+        T: Write + Seek,
+    {
+        let start_position = output.stream_position()?;
+
+        // pid and start_time fields.
+
+        output.write_all(&[0, 0])?;
+        output.write_all(&pid.to_ne_bytes())?;
+        output.write_all(&monotonic_time.tv_sec.to_ne_bytes())?;
+        output.write_all(&monotonic_time.tv_nsec.to_ne_bytes())?;
+        output.write_all(&start_time.tv_sec.to_ne_bytes())?;
+        output.write_all(&start_time.tv_nsec.to_ne_bytes())?;
+
+        // filename and argv fields.
+
+        copy_cstr(&mut output, filename)?;
+
+        let mut arg = argv;
+        while !(*arg).is_null() {
+            copy_cstr(&mut output, *arg)?;
+            arg = arg.add(1);
+        }
+
+        // Compute written bytes.
+
+        let current_position = output.stream_position()?;
+        let size = current_position - start_position;
+
+        output.seek(io::SeekFrom::Start(start_position))?;
+        output.write_all(&u16::to_ne_bytes(size as u16))?;
+
+        Ok(size as usize)
     }
 }
 
@@ -62,8 +112,10 @@ impl Iterator for ExecEventParser<'_> {
         }
 
         let pid = field!(libc::pid_t);
-        let tv_sec = field!(libc::time_t);
-        let tv_nsec = field!(libc::c_long);
+        let monotonic_tv_sec = field!(libc::time_t);
+        let monotonic_tv_nsec = field!(libc::c_long);
+        let start_tv_sec = field!(libc::time_t);
+        let start_tv_nsec = field!(libc::c_long);
 
         // Split arguments on NUL bytes.
 
@@ -79,55 +131,20 @@ impl Iterator for ExecEventParser<'_> {
 
         let event = ExecEvent {
             pid,
-            start_time: libc::timespec { tv_sec, tv_nsec },
+            monotonic_time: libc::timespec {
+                tv_sec: monotonic_tv_sec,
+                tv_nsec: monotonic_tv_nsec,
+            },
+            start_time: libc::timespec {
+                tv_sec: start_tv_sec,
+                tv_nsec: start_tv_nsec,
+            },
             args,
         };
 
         self.0 = &self.0[event_size..];
         Some(event)
     }
-}
-
-/// Serialize data for an `ExecEvent` value.
-pub fn write_exec_event<T>(
-    mut output: T,
-    pid: libc::pid_t,
-    start_time: libc::timespec,
-    filename: *const libc::c_char,
-    argv: *const *const libc::c_char,
-) -> io::Result<usize>
-where
-    T: Write + Seek,
-{
-    let start_position = output.stream_position()?;
-
-    // pid and start_time fields.
-    output.write_all(&[0, 0])?;
-    output.write_all(&pid.to_ne_bytes())?;
-    output.write_all(&start_time.tv_sec.to_ne_bytes())?;
-    output.write_all(&start_time.tv_nsec.to_ne_bytes())?;
-
-    // filename and argv fields.
-
-    unsafe {
-        copy_cstr(&mut output, filename)?;
-
-        let mut arg = argv;
-        while !(*arg).is_null() {
-            copy_cstr(&mut output, *arg)?;
-            arg = arg.add(1);
-        }
-    }
-
-    // Compute written bytes.
-
-    let current_position = output.stream_position()?;
-    let size = current_position - start_position;
-
-    output.seek(io::SeekFrom::Start(start_position))?;
-    output.write_all(&u16::to_ne_bytes(size as u16))?;
-
-    Ok(size as usize)
 }
 
 /// Write a C string to `output`, with a NUL byte at the end.
@@ -172,36 +189,44 @@ mod tests {
         let mut written = 0;
         let mut buffer = &mut output[..];
         for idx in 0..3 {
-            let size = write_exec_event(
-                std::io::Cursor::new(&mut *buffer),
-                1000 + idx as libc::pid_t,
-                libc::timespec {
-                    tv_sec: 10000 + idx,
-                    tv_nsec: 20000 + idx,
-                },
-                cstr!("/bin/ls"),
-                [
-                    cstr!("ls"),
-                    cstr!("-l"),
-                    format!("file{}\0", idx).as_ptr().cast(),
-                    std::ptr::null(),
-                ]
-                .as_ptr(),
-            )
-            .unwrap();
+            let size = unsafe {
+                ExecEvent::serialize(
+                    std::io::Cursor::new(&mut *buffer),
+                    1000 + idx as libc::pid_t,
+                    libc::timespec {
+                        tv_sec: 10000 + idx,
+                        tv_nsec: 20000 + idx,
+                    },
+                    libc::timespec {
+                        tv_sec: 1000000 + idx,
+                        tv_nsec: 2000000 + idx,
+                    },
+                    cstr!("/bin/ls"),
+                    [
+                        cstr!("ls"),
+                        cstr!("-l"),
+                        format!("file{}\0", idx).as_ptr().cast(),
+                        std::ptr::null(),
+                    ]
+                    .as_ptr(),
+                )
+                .unwrap()
+            };
 
             written += size;
             buffer = &mut buffer[size..];
         }
 
         // Deserialize the events.
-        let mut events = ExecEvent::parse_buffer(&output[..written]);
+        let mut events = ExecEvent::parse(&output[..written]);
         for idx in 0..3 {
             let event = events.next().unwrap();
 
             assert_eq!(event.pid, 1000 + idx as libc::pid_t);
-            assert_eq!(event.start_time.tv_sec, 10000 + idx);
-            assert_eq!(event.start_time.tv_nsec, 20000 + idx);
+            assert_eq!(event.monotonic_time.tv_sec, 10000 + idx);
+            assert_eq!(event.monotonic_time.tv_nsec, 20000 + idx);
+            assert_eq!(event.start_time.tv_sec, 1000000 + idx);
+            assert_eq!(event.start_time.tv_nsec, 2000000 + idx);
             assert_eq!(
                 event.args,
                 [
