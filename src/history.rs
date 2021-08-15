@@ -5,6 +5,7 @@ use std::ffi::OsString;
 use std::sync::Mutex;
 use std::time::Duration;
 
+use chrono::{DateTime, Local, TimeZone};
 use once_cell::sync::Lazy;
 
 /// Default size of the history.
@@ -17,7 +18,7 @@ pub static HISTORY: Lazy<Mutex<History>> = Lazy::new(|| Mutex::new(History::new(
 pub struct Entry {
     pub unique_id: usize,
     pub pid: libc::pid_t,
-    pub start_time: libc::timespec,
+    pub start_time: DateTime<Local>,
     pub args: Vec<OsString>,
     pub state: State,
 }
@@ -63,7 +64,7 @@ impl History {
         self.entries.push_front(Entry {
             unique_id: self.last_unique_id,
             pid: event.pid,
-            start_time: event.start_time,
+            start_time: Local.timestamp(event.start_time.tv_sec, event.start_time.tv_nsec as u32),
             args: event.args,
             state: State::Running {
                 start: event.monotonic_time,

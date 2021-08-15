@@ -6,6 +6,7 @@ license = "Apache-2.0"
 
 [dependencies]
 bash-builtins = "0"
+chrono = "0.4.19"
 libc = "0"
 memchr = "2.4.0"
 once_cell = "1.8.0"

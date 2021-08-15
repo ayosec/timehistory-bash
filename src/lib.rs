@@ -41,7 +41,7 @@ impl Builtin for TimeHistory {
         };
 
         for entry in history.entries.iter().rev() {
-            print!("{} {:?} {:?}\n\t", entry.unique_id, entry.pid, entry.args);
+            println!("{} {:?} {:?}", entry.unique_id, entry.pid, entry.args);
             match &entry.state {
                 history::State::Running { .. } => println!("running"),
                 history::State::Finished {
@@ -50,8 +50,8 @@ impl Builtin for TimeHistory {
                     status,
                 } => {
                     println!(
-                        "{:?}\n\tstatus={} maxrss={}",
-                        running_time, status, rusage.ru_maxrss
+                        "\t{:?}\n\t{}\n\tstatus={} maxrss={}",
+                        running_time, entry.start_time, status, rusage.ru_maxrss
                     )
                 }
             }
