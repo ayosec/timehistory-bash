@@ -4,6 +4,7 @@ use bash_builtins::{builtin_metadata, Args, Builtin, Result as BuiltinResult};
 
 builtin_metadata!(name = "timehistory", try_create = TimeHistory::new,);
 
+mod format;
 mod history;
 mod ipc;
 mod procs;
