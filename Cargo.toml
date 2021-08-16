@@ -15,6 +15,10 @@ plthook = "0"
 [build-dependencies]
 generator = { path = "generator" }
 
+[profile.release]
+lto = true
+incremental = false
+
 [lib]
 crate-type = [ "cdylib" ]
 
