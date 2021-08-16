@@ -1,6 +1,7 @@
 //! timehistory bash builtin
 
-use bash_builtins::{builtin_metadata, Args, Builtin, Result as BuiltinResult};
+use bash_builtins::{builtin_metadata, Args, Builtin, BuiltinOptions, Result as BuiltinResult};
+use std::io::{self, BufWriter, Write};
 
 builtin_metadata!(name = "timehistory", try_create = TimeHistory::new,);
 
@@ -9,11 +10,20 @@ mod history;
 mod ipc;
 mod procs;
 
+use std::borrow::Cow;
 use std::time::Duration;
+
+const DEFAULT_FORMAT: &str = "%n\t%P\t%(elapsed)\t%C";
 
 #[allow(dead_code)]
 struct TimeHistory {
     fn_replacements: procs::Replacements,
+}
+
+#[derive(BuiltinOptions)]
+enum Opt {
+    #[opt = 'f']
+    Format(String),
 }
 
 impl TimeHistory {
@@ -29,8 +39,19 @@ impl TimeHistory {
 
 impl Builtin for TimeHistory {
     fn call(&mut self, args: &mut Args) -> BuiltinResult<()> {
-        args.no_options()?;
+        // Extract options from command-line.
+
+        let mut format = Cow::from(DEFAULT_FORMAT);
+
+        for opt in args.options() {
+            match opt? {
+                Opt::Format(f) => format = f.into(),
+            }
+        }
+
         args.finished()?;
+
+        // Show history entries.
 
         let history = match history::HISTORY.try_lock() {
             Ok(l) => l,
@@ -41,21 +62,12 @@ impl Builtin for TimeHistory {
             }
         };
 
+        let stdout_handle = io::stdout();
+        let mut output = BufWriter::new(stdout_handle.lock());
+
         for entry in history.entries.iter().rev() {
-            println!("{} {:?} {:?}", entry.unique_id, entry.pid, entry.args);
-            match &entry.state {
-                history::State::Running { .. } => println!("running"),
-                history::State::Finished {
-                    running_time,
-                    rusage,
-                    status,
-                } => {
-                    println!(
-                        "\t{:?}\n\t{}\n\tstatus={} maxrss={}",
-                        running_time, entry.start_time, status, rusage.ru_maxrss
-                    )
-                }
-            }
+            format::render(entry, &format, &mut output)?;
+            output.write_all(b"\n")?;
         }
 
         Ok(())
