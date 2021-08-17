@@ -10,6 +10,8 @@ const PARSER_CODE: &str = "format-parser.rs";
 
 const DOC_PLAIN_TEXT: &str = "doc.txt";
 
+const DOC_MARKDOWN: &str = "FORMAT.md";
+
 fn main() {
     let out_dir = PathBuf::from(std::env::var("OUT_DIR").unwrap());
 
@@ -30,4 +32,9 @@ fn main() {
     let doc_txt = File::create(out_dir.join(DOC_PLAIN_TEXT)).unwrap();
     generator::docs::generate_plain_text(BufWriter::new(doc_txt), &doc_items)
         .expect("Failed to generate plain text documentation.");
+
+    // Markdown documentation.
+    let doc_md = File::create(DOC_MARKDOWN).unwrap();
+    generator::docs::generate_markdown(BufWriter::new(doc_md), &doc_items)
+        .expect("Failed to generate markdown documentation.");
 }
