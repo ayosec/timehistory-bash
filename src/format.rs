@@ -5,6 +5,8 @@ use std::io::{self, Write};
 use std::os::unix::ffi::OsStrExt;
 use std::{fmt, mem};
 
+pub const HELP: &[u8] = include_bytes!(concat!(env!("OUT_DIR"), "/doc.txt"));
+
 /// Render a format string with data from a `Entry` instance.
 pub fn render(entry: &Entry, format: &str, mut output: impl Write) -> io::Result<()> {
     let format = format.as_bytes();

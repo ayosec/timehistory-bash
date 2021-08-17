@@ -21,9 +21,9 @@ struct TimeHistory {
 }
 
 #[derive(BuiltinOptions)]
-enum Opt {
+enum Opt<'a> {
     #[opt = 'f']
-    Format(String),
+    Format(&'a str),
 }
 
 impl TimeHistory {
@@ -39,13 +39,21 @@ impl TimeHistory {
 
 impl Builtin for TimeHistory {
     fn call(&mut self, args: &mut Args) -> BuiltinResult<()> {
+        let stdout_handle = io::stdout();
+        let mut output = BufWriter::new(stdout_handle.lock());
+
         // Extract options from command-line.
 
         let mut format = Cow::from(DEFAULT_FORMAT);
 
         for opt in args.options() {
             match opt? {
-                Opt::Format(f) => format = f.into(),
+                Opt::Format("help") => {
+                    output.write_all(format::HELP)?;
+                    return Ok(());
+                }
+
+                Opt::Format(f) => format = f.to_owned().into(),
             }
         }
 
@@ -61,9 +69,6 @@ impl Builtin for TimeHistory {
                 return Err(bash_builtins::Error::ExitCode(1));
             }
         };
-
-        let stdout_handle = io::stdout();
-        let mut output = BufWriter::new(stdout_handle.lock());
 
         for entry in history.entries.iter().rev() {
             format::render(entry, &format, &mut output)?;
