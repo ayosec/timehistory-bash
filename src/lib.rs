@@ -31,6 +31,9 @@ enum Opt<'a> {
     #[opt = 'f']
     Format(&'a str),
 
+    #[opt = 'C']
+    PrintConfig,
+
     #[opt = 'F']
     SetDefaultFormat(String),
 
@@ -70,6 +73,17 @@ impl Builtin for TimeHistory {
                 }
 
                 Opt::Format(fmt) => format = Some(fmt.to_owned()),
+
+                Opt::PrintConfig => {
+                    writeln!(
+                        &mut output,
+                        "-L {} -F {}",
+                        history()?.size(),
+                        format::EscapeArgument(self.default_format.as_bytes())
+                    )?;
+
+                    exit_after_options = true;
+                }
 
                 Opt::SetDefaultFormat(fmt) => {
                     self.default_format = if fmt.is_empty() {

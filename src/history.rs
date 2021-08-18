@@ -37,8 +37,8 @@ pub enum State {
 
 /// History.
 pub struct History {
-    pub last_unique_id: usize,
-    pub size: usize,
+    last_unique_id: usize,
+    size: usize,
     pub entries: VecDeque<Entry>,
 }
 
@@ -49,6 +49,11 @@ impl History {
             size: DEFAULT_SIZE,
             entries: VecDeque::with_capacity(DEFAULT_SIZE),
         }
+    }
+
+    /// Returns the current size.
+    pub fn size(&self) -> usize {
+        self.size
     }
 
     /// Change the limit of the history. If the new limit is less than the
