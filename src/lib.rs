@@ -10,6 +10,9 @@ mod history;
 mod ipc;
 mod procs;
 
+#[cfg(test)]
+mod tests;
+
 use std::sync::MutexGuard;
 use std::time::Duration;
 
