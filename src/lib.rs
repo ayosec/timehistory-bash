@@ -10,6 +10,7 @@ mod history;
 mod ipc;
 mod procs;
 
+use std::sync::MutexGuard;
 use std::time::Duration;
 
 const DEFAULT_FORMAT: &str = "%n\t%P\t%e\t%C";
@@ -32,13 +33,9 @@ enum Opt<'a> {
 
     #[opt = 'F']
     SetDefaultFormat(String),
-}
 
-/// Action to execute after parsing options.
-#[derive(PartialEq)]
-enum Action {
-    List,
-    Exit,
+    #[opt = 'L']
+    SetLimit(usize),
 }
 
 impl TimeHistory {
@@ -62,14 +59,14 @@ impl Builtin for TimeHistory {
 
         // Extract options from command-line.
 
-        let mut action = Action::List;
+        let mut exit_after_options = false;
         let mut format = None;
 
         for opt in args.options() {
             match opt? {
                 Opt::Format("help") => {
                     output.write_all(format::HELP)?;
-                    action = Action::Exit;
+                    exit_after_options = true;
                 }
 
                 Opt::Format(fmt) => format = Some(fmt.to_owned()),
@@ -81,27 +78,23 @@ impl Builtin for TimeHistory {
                         fmt
                     };
 
-                    action = Action::Exit;
+                    exit_after_options = true;
+                }
+
+                Opt::SetLimit(l) => {
+                    history()?.set_size(l as usize);
+                    exit_after_options = true;
                 }
             }
         }
 
-        if action == Action::Exit {
+        if exit_after_options {
             args.finished()?;
             return Ok(());
         }
 
         // Show history entries.
-
-        let history = match history::HISTORY.try_lock() {
-            Ok(l) => l,
-
-            Err(e) => {
-                bash_builtins::error!("history unavailable: {}", e);
-                return Err(bash_builtins::Error::ExitCode(1));
-            }
-        };
-
+        let history = history()?;
         let format = format.as_ref().unwrap_or(&self.default_format);
 
         for entry in history.entries.iter().rev() {
@@ -111,4 +104,11 @@ impl Builtin for TimeHistory {
 
         Ok(())
     }
+}
+
+fn history() -> Result<MutexGuard<'static, history::History>, bash_builtins::Error> {
+    history::HISTORY.try_lock().map_err(|e| {
+        bash_builtins::error!("history unavailable: {}", e);
+        bash_builtins::Error::ExitCode(1)
+    })
 }

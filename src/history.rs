@@ -51,6 +51,13 @@ impl History {
         }
     }
 
+    /// Change the limit of the history. If the new limit is less than the
+    /// current size of the queue, the oldest entries are removed.
+    pub fn set_size(&mut self, size: usize) {
+        self.entries.truncate(size);
+        self.size = size;
+    }
+
     /// Add a new entry to the history, and discard old entries if
     /// capacity is exceeded.
     pub fn add_entry(&mut self, event: crate::ipc::events::ExecEvent) {
