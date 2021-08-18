@@ -1,0 +1,5 @@
+1
+2
+0,/bin/echo 1
+0,/bin/echo 2
+1,/bin/false

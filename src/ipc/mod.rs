@@ -9,7 +9,7 @@ use std::time::Duration;
 pub use sharedbuffer::{SharedBuffer, SharedBufferGuard};
 
 /// Size for the shared buffer;
-const SHARED_BUFFER_SIZE: usize = 8 * 1024;
+const SHARED_BUFFER_SIZE: usize = 16 * 1024;
 
 /// Global reference to the shared buffer.
 pub fn global_shared_buffer(timeout: Duration) -> Option<SharedBufferGuard<'static>> {

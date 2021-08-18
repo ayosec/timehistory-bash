@@ -13,7 +13,6 @@ mod procs;
 #[cfg(test)]
 mod tests;
 
-use std::sync::MutexGuard;
 use std::time::Duration;
 
 const DEFAULT_FORMAT: &str = "%n\t%P\t%e\t%C";
@@ -51,6 +50,11 @@ impl TimeHistory {
         }
 
         let fn_replacements = procs::replace_functions()?;
+
+        unsafe {
+            history::OWNER_PID = libc::getpid();
+        }
+
         Ok(TimeHistory {
             default_format: DEFAULT_FORMAT.into(),
             fn_replacements,
@@ -62,6 +66,11 @@ impl Builtin for TimeHistory {
     fn call(&mut self, args: &mut Args) -> BuiltinResult<()> {
         let stdout_handle = io::stdout();
         let mut output = BufWriter::new(stdout_handle.lock());
+
+        let mut history = match crate::ipc::events::collect_events() {
+            Some(history) => history,
+            None => return Err(bash_builtins::Error::ExitCode(1)),
+        };
 
         // Extract options from command-line.
 
@@ -81,7 +90,7 @@ impl Builtin for TimeHistory {
                     writeln!(
                         &mut output,
                         "-L {} -F {}",
-                        history()?.size(),
+                        history.size(),
                         format::EscapeArgument(self.default_format.as_bytes())
                     )?;
 
@@ -99,7 +108,7 @@ impl Builtin for TimeHistory {
                 }
 
                 Opt::SetLimit(l) => {
-                    history()?.set_size(l as usize);
+                    history.set_size(l as usize);
                     exit_after_options = true;
                 }
             }
@@ -111,7 +120,6 @@ impl Builtin for TimeHistory {
         }
 
         // Show history entries.
-        let history = history()?;
         let format = format.as_ref().unwrap_or(&self.default_format);
 
         for entry in history.entries.iter().rev() {
@@ -121,11 +129,4 @@ impl Builtin for TimeHistory {
 
         Ok(())
     }
-}
-
-fn history() -> Result<MutexGuard<'static, history::History>, bash_builtins::Error> {
-    history::HISTORY.try_lock().map_err(|e| {
-        bash_builtins::error!("history unavailable: {}", e);
-        bash_builtins::Error::ExitCode(1)
-    })
 }

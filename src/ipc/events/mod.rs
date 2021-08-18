@@ -13,11 +13,15 @@
 
 mod exec;
 mod ioext;
+mod wait;
 
 use crate::history::History;
 use std::io::{self, Seek, Write};
+use std::sync::MutexGuard;
+use std::time::Duration;
 
 pub use exec::ExecEvent;
+pub use wait::WaitEvent;
 
 /// Wrapper to serialize events.
 pub struct EventPayload<T> {
@@ -58,6 +62,7 @@ impl<T> AsMut<T> for EventPayload<T> {
 /// Events in the shared buffer.
 pub enum Event {
     Exec(ExecEvent),
+    Wait(WaitEvent),
 }
 
 /// Parser to extract events from a byte slice.
@@ -91,12 +96,45 @@ impl Iterator for EventsParser<'_> {
 
         let event = match event_tag {
             exec::EXECVE_TAG => Event::Exec(ExecEvent::deserialize(event_data).ok()?),
+            wait::WAIT_TAG => Event::Wait(WaitEvent::deserialize(event_data).ok()?),
             _ => return None,
         };
 
         self.0 = &self.0[event_size..];
         Some(event)
     }
+}
+
+/// Extract events from the shared buffers and update the history.
+pub fn collect_events() -> Option<MutexGuard<'static, History>> {
+    let mut history = match crate::history::HISTORY.try_lock() {
+        Ok(l) => l,
+
+        Err(e) => {
+            let _ = writeln!(io::stderr(), "timehistory: history unavailable: {}", e);
+            return None;
+        }
+    };
+
+    let mut shared_buffer = match crate::ipc::global_shared_buffer(Duration::from_millis(50)) {
+        Some(sb) => sb,
+
+        None => {
+            let _ = writeln!(io::stderr(), "timehistory: shared buffer unavailable");
+            return None;
+        }
+    };
+
+    for event in EventsParser::new(shared_buffer.input()) {
+        match event {
+            Event::Exec(e) => history.add_entry(e),
+            Event::Wait(w) => history.update_entry(w.pid, w.status, w.finish_time, w.rusage),
+        }
+    }
+
+    shared_buffer.clear();
+
+    Some(history)
 }
 
 #[cfg(test)]

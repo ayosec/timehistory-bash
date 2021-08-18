@@ -14,6 +14,9 @@ const DEFAULT_SIZE: usize = 100;
 /// Global variable to access the history from the `waitpid` function.
 pub static HISTORY: Lazy<Mutex<History>> = Lazy::new(|| Mutex::new(History::new()));
 
+/// Process identifier where the history is stored.
+pub static mut OWNER_PID: libc::pid_t = 0;
+
 /// History entry.
 pub struct Entry {
     pub unique_id: usize,
@@ -82,5 +85,40 @@ impl History {
                 start: event.monotonic_time,
             },
         });
+    }
+
+    /// Updates a history entry with the results from `wait4`.
+    pub fn update_entry(
+        &mut self,
+        pid: libc::pid_t,
+        status: libc::c_int,
+        finish_time: libc::timespec,
+        rusage: libc::rusage,
+    ) {
+        // Locate the entry for this process in the history.
+        let entry = match self.entries.iter_mut().find(|e| e.pid == pid) {
+            Some(e) => e,
+            None => return,
+        };
+
+        // Compute elapsed time since start.
+        let running_time = match &entry.state {
+            State::Running { start } => {
+                fn duration(ts: &libc::timespec) -> Duration {
+                    Duration::new(ts.tv_sec as u64, ts.tv_nsec as u32)
+                }
+
+                duration(&finish_time).checked_sub(duration(start))
+            }
+
+            _ => None,
+        };
+
+        // Update state in the history.
+        entry.state = State::Finished {
+            running_time,
+            status,
+            rusage,
+        };
     }
 }

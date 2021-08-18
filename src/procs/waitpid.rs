@@ -6,7 +6,10 @@ use std::mem::MaybeUninit;
 use std::time::Duration;
 
 use crate::history;
-use crate::ipc::events::{Event, EventsParser};
+use crate::ipc::events::{collect_events, WaitEvent};
+
+/// Timeout to send results for `wait4` to the shared buffer.
+const EVENT_TIMEOUT: Duration = Duration::from_millis(250);
 
 /// Function to replace waitpid().
 pub(super) unsafe extern "C" fn waitpid_wrapper(
@@ -24,87 +27,57 @@ pub(super) unsafe extern "C" fn waitpid_wrapper(
         ts.assume_init()
     };
 
-    collect_execve_events();
+    if ret <= 0 {
+        return ret;
+    }
 
-    if ret > 0 {
-        store_process_result(ret, wstatus, finish_time, rusage.assume_init());
+    let status = if wstatus.is_null() { -1 } else { *wstatus };
+
+    if libc::getpid() == history::OWNER_PID {
+        // We are running in the main bash process, so we can update the data
+        // in the global `HISTORY` state.
+
+        collect_events();
+
+        if let Ok(mut history) = history::HISTORY.try_lock() {
+            history.update_entry(ret, status, finish_time, rusage.assume_init());
+        }
+    } else {
+        // This process is a subshell, so we don't have access to the `HISTORY` state.
+        //
+        // The results from `wait4` are sent through the shared buffer.
+        if let Some(shared_buffer) = crate::ipc::global_shared_buffer(EVENT_TIMEOUT) {
+            if let Err(e) = write_event(
+                shared_buffer,
+                ret,
+                status,
+                finish_time,
+                rusage.assume_init(),
+            ) {
+                let _ = writeln!(stderr(), "timehistory: waitpid: {}", e);
+            }
+        }
     }
 
     ret
 }
 
-/// Extract `execve` events from the shared buffers and create new history
-/// entries.
-fn collect_execve_events() {
-    let mut history = match history::HISTORY.try_lock() {
-        Ok(l) => l,
-
-        Err(e) => {
-            let _ = writeln!(stderr(), "timehistory: history unavailable: {}", e);
-            return;
-        }
-    };
-
-    let mut shared_buffer = match crate::ipc::global_shared_buffer(Duration::from_millis(50)) {
-        Some(sb) => sb,
-
-        None => {
-            let _ = writeln!(stderr(), "timehistory: shared buffer unavailable");
-            return;
-        }
-    };
-
-    for event in EventsParser::new(shared_buffer.input()) {
-        match event {
-            Event::Exec(e) => history.add_entry(e),
-        }
-    }
-
-    shared_buffer.clear();
-}
-
-/// Update a history entry to store data from the `wait4` result.
-fn store_process_result(
-    pid: pid_t,
-    wstatus: *mut c_int,
+unsafe fn write_event(
+    mut buffer: crate::ipc::SharedBufferGuard,
+    pid: libc::pid_t,
+    status: libc::c_int,
     finish_time: libc::timespec,
     rusage: libc::rusage,
-) {
-    // Locate the entry for this process in the history.
-
-    let mut history = match history::HISTORY.try_lock() {
-        Ok(l) => l,
-        Err(_) => return,
-    };
-
-    let entry = match history.entries.iter_mut().find(|e| e.pid == pid) {
-        Some(e) => e,
-        None => return,
-    };
-
-    let status = if wstatus.is_null() {
-        -1
-    } else {
-        unsafe { *wstatus }
-    };
-
-    // Compute elapsed time since start.
-    let running_time = match &entry.state {
-        history::State::Running { start } => {
-            fn duration(ts: &libc::timespec) -> Duration {
-                Duration::new(ts.tv_sec as u64, ts.tv_nsec as u32)
-            }
-
-            duration(&finish_time).checked_sub(duration(start))
-        }
-
-        _ => None,
-    };
-
-    // Update state in the history.
-    entry.state = history::State::Finished {
-        running_time,
+) -> std::io::Result<()> {
+    let written = WaitEvent::serialize(
+        std::io::Cursor::new(buffer.output()),
+        pid,
         status,
+        finish_time,
         rusage,
-    };
+    )?;
+
+    buffer.advance(written);
+
+    Ok(())
 }
