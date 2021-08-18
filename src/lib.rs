@@ -3,7 +3,29 @@
 use bash_builtins::{builtin_metadata, Args, Builtin, BuiltinOptions, Result as BuiltinResult};
 use std::io::{self, BufWriter, Write};
 
-builtin_metadata!(name = "timehistory", try_create = TimeHistory::new,);
+builtin_metadata!(
+    name = "timehistory",
+    try_create = TimeHistory::new,
+    short_doc = "timehistory [-f fmt] [<n>] | -R | -C | [-L limit] [-F fmt]",
+    long_doc = "
+        Displays information about the resources used by programs executed in
+        the running shell.
+
+        Options:
+          -f FMT\tUse FMT as the format string for every history entry,
+                \tinstead of the default value.
+          -R\tRemove all entries in the history.
+          -C\tShow the current configuration.
+          -F\tChange the default format string.
+          -L\tChange the history limit.
+
+        Use '-f help' to get information about the formatting syntax.
+
+        If <n> is given, it displays all information for a specific history
+        entry. The valid numbers are printed with the %n specifier in the
+        format string.
+    ",
+);
 
 mod format;
 mod history;
