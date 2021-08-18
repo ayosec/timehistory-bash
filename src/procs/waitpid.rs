@@ -6,7 +6,7 @@ use std::mem::MaybeUninit;
 use std::time::Duration;
 
 use crate::history;
-use crate::ipc::events::ExecEvent;
+use crate::ipc::events::{Event, EventsParser};
 
 /// Function to replace waitpid().
 pub(super) unsafe extern "C" fn waitpid_wrapper(
@@ -54,8 +54,10 @@ fn collect_execve_events() {
         }
     };
 
-    for event in ExecEvent::parse(shared_buffer.input()) {
-        history.add_entry(event);
+    for event in EventsParser::new(shared_buffer.input()) {
+        match event {
+            Event::Exec(e) => history.add_entry(e),
+        }
     }
 
     shared_buffer.clear();
