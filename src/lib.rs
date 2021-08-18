@@ -10,13 +10,18 @@ mod history;
 mod ipc;
 mod procs;
 
-use std::borrow::Cow;
 use std::time::Duration;
 
-const DEFAULT_FORMAT: &str = "%n\t%P\t%(elapsed)\t%C";
+const DEFAULT_FORMAT: &str = "%n\t%P\t%e\t%C";
 
-#[allow(dead_code)]
 struct TimeHistory {
+    /// Default format to print history entries.
+    default_format: String,
+
+    /// Replacements for libc functions.
+    ///
+    /// Stored to invoke the destructors when the builtin is removed.
+    #[allow(dead_code)]
     fn_replacements: procs::Replacements,
 }
 
@@ -24,6 +29,16 @@ struct TimeHistory {
 enum Opt<'a> {
     #[opt = 'f']
     Format(&'a str),
+
+    #[opt = 'F']
+    SetDefaultFormat(String),
+}
+
+/// Action to execute after parsing options.
+#[derive(PartialEq)]
+enum Action {
+    List,
+    Exit,
 }
 
 impl TimeHistory {
@@ -33,7 +48,10 @@ impl TimeHistory {
         }
 
         let fn_replacements = procs::replace_functions()?;
-        Ok(TimeHistory { fn_replacements })
+        Ok(TimeHistory {
+            default_format: DEFAULT_FORMAT.into(),
+            fn_replacements,
+        })
     }
 }
 
@@ -44,20 +62,34 @@ impl Builtin for TimeHistory {
 
         // Extract options from command-line.
 
-        let mut format = Cow::from(DEFAULT_FORMAT);
+        let mut action = Action::List;
+        let mut format = None;
 
         for opt in args.options() {
             match opt? {
                 Opt::Format("help") => {
                     output.write_all(format::HELP)?;
-                    return Ok(());
+                    action = Action::Exit;
                 }
 
-                Opt::Format(f) => format = f.to_owned().into(),
+                Opt::Format(fmt) => format = Some(fmt.to_owned()),
+
+                Opt::SetDefaultFormat(fmt) => {
+                    self.default_format = if fmt.is_empty() {
+                        DEFAULT_FORMAT.into()
+                    } else {
+                        fmt
+                    };
+
+                    action = Action::Exit;
+                }
             }
         }
 
-        args.finished()?;
+        if action == Action::Exit {
+            args.finished()?;
+            return Ok(());
+        }
 
         // Show history entries.
 
@@ -70,8 +102,10 @@ impl Builtin for TimeHistory {
             }
         };
 
+        let format = format.as_ref().unwrap_or(&self.default_format);
+
         for entry in history.entries.iter().rev() {
-            format::render(entry, &format, &mut output)?;
+            format::render(entry, format, &mut output)?;
             output.write_all(b"\n")?;
         }
 
