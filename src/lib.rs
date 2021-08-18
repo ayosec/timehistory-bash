@@ -33,6 +33,9 @@ enum Opt<'a> {
     #[opt = 'f']
     Format(&'a str),
 
+    #[opt = 'R']
+    Reset,
+
     #[opt = 'C']
     PrintConfig,
 
@@ -41,6 +44,12 @@ enum Opt<'a> {
 
     #[opt = 'L']
     SetLimit(usize),
+}
+
+enum Action {
+    List,
+    Reset,
+    ShowItem(usize),
 }
 
 impl TimeHistory {
@@ -76,6 +85,7 @@ impl Builtin for TimeHistory {
 
         let mut exit_after_options = false;
         let mut format = None;
+        let mut action = Action::List;
 
         for opt in args.options() {
             match opt? {
@@ -85,6 +95,8 @@ impl Builtin for TimeHistory {
                 }
 
                 Opt::Format(fmt) => format = Some(fmt.to_owned()),
+
+                Opt::Reset => action = Action::Reset,
 
                 Opt::PrintConfig => {
                     writeln!(
@@ -119,12 +131,21 @@ impl Builtin for TimeHistory {
             return Ok(());
         }
 
-        // Show history entries.
         let format = format.as_ref().unwrap_or(&self.default_format);
 
-        for entry in history.entries.iter().rev() {
-            format::render(entry, format, &mut output)?;
-            output.write_all(b"\n")?;
+        match action {
+            Action::List => {
+                for entry in history.entries.iter().rev() {
+                    format::render(entry, format, &mut output)?;
+                    output.write_all(b"\n")?;
+                }
+            }
+
+            Action::Reset => {
+                history.entries.clear();
+            }
+
+            Action::ShowItem(_) => todo!(),
         }
 
         Ok(())
