@@ -33,6 +33,7 @@ fn build() -> PathBuf {
     let build = Command::new(env::var("CARGO").unwrap())
         .arg("build")
         .arg("--quiet")
+        .args(&["--features", "option-for-panics"])
         .args(&["--message-format", "json"])
         .output()
         .unwrap();

@@ -106,12 +106,14 @@ impl Iterator for EventsParser<'_> {
 }
 
 /// Extract events from the shared buffers and update the history.
-pub fn collect_events() -> Option<MutexGuard<'static, History>> {
+pub fn collect_events(show_errors: bool) -> Option<MutexGuard<'static, History>> {
     let mut history = match crate::history::HISTORY.try_lock() {
         Ok(l) => l,
 
         Err(e) => {
-            let _ = writeln!(io::stderr(), "timehistory: history unavailable: {}", e);
+            if show_errors {
+                let _ = writeln!(io::stderr(), "timehistory: history unavailable: {}", e);
+            }
             return None;
         }
     };
@@ -120,7 +122,9 @@ pub fn collect_events() -> Option<MutexGuard<'static, History>> {
         Some(sb) => sb,
 
         None => {
-            let _ = writeln!(io::stderr(), "timehistory: shared buffer unavailable");
+            if show_errors {
+                let _ = writeln!(io::stderr(), "timehistory: shared buffer unavailable");
+            }
             return None;
         }
     };

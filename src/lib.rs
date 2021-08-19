@@ -46,12 +46,6 @@ const DEFAULT_FORMAT: &str = "%n\t%(time:%X)\t%P\t%e\t%C";
 struct TimeHistory {
     /// Default format to print history entries.
     default_format: String,
-
-    /// Replacements for libc functions.
-    ///
-    /// Stored to invoke the destructors when the builtin is removed.
-    #[allow(dead_code)]
-    fn_replacements: procs::Replacements,
 }
 
 #[derive(BuiltinOptions)]
@@ -76,6 +70,10 @@ enum Opt<'a> {
 
     #[opt = 'L']
     SetLimit(usize),
+
+    #[cfg(feature = "option-for-panics")]
+    #[opt = 'P']
+    Panic,
 }
 
 enum Output {
@@ -96,7 +94,7 @@ impl TimeHistory {
             return Err("shared buffer unavailable".into());
         }
 
-        let fn_replacements = procs::replace_functions()?;
+        procs::replace_functions()?;
 
         unsafe {
             history::OWNER_PID = libc::getpid();
@@ -104,7 +102,6 @@ impl TimeHistory {
 
         Ok(TimeHistory {
             default_format: DEFAULT_FORMAT.into(),
-            fn_replacements,
         })
     }
 }
@@ -114,7 +111,7 @@ impl Builtin for TimeHistory {
         let stdout_handle = io::stdout();
         let mut output = BufWriter::new(stdout_handle.lock());
 
-        let mut history = match crate::ipc::events::collect_events() {
+        let mut history = match crate::ipc::events::collect_events(true) {
             Some(history) => history,
             None => return Err(bash_builtins::Error::ExitCode(1)),
         };
@@ -176,6 +173,9 @@ impl Builtin for TimeHistory {
                     history.set_size(l as usize);
                     exit_after_options = true;
                 }
+
+                #[cfg(feature = "option-for-panics")]
+                Opt::Panic => panic!("-P"),
             }
         }
 

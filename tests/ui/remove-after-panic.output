@@ -1,0 +1,6 @@
+timehistory is a shell builtin
+- 1
+tests/ui/remove-after-panic.sh: line 10: timehistory: invalid internal state
+2
+tests/ui/remove-after-panic.sh: line 14: type: timehistory: not found
+3

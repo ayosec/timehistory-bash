@@ -37,7 +37,7 @@ pub(super) unsafe extern "C" fn waitpid_wrapper(
         // We are running in the main bash process, so we can update the data
         // in the global `HISTORY` state.
 
-        collect_events();
+        collect_events(false);
 
         if let Ok(mut history) = history::HISTORY.try_lock() {
             history.update_entry(ret, status, finish_time, rusage.assume_init());

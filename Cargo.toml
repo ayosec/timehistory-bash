@@ -17,6 +17,9 @@ serde_json = "1"
 [build-dependencies]
 generator = { path = "generator" }
 
+[features]
+option-for-panics = []
+
 [profile.release]
 lto = true
 incremental = false
