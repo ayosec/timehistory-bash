@@ -18,11 +18,18 @@ pub static HISTORY: Lazy<Mutex<History>> = Lazy::new(|| Mutex::new(History::new(
 pub static mut OWNER_PID: libc::pid_t = 0;
 
 /// History entry.
+#[derive(serde::Serialize)]
 pub struct Entry {
     pub unique_id: usize,
+
     pub pid: libc::pid_t,
+
     pub start_time: DateTime<Local>,
+
+    #[serde(serialize_with = "crate::jsonext::serialize_os_string")]
     pub args: Vec<OsString>,
+
+    #[serde(serialize_with = "crate::jsonext::serialize_state")]
     pub state: State,
 }
 

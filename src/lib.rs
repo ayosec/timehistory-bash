@@ -6,7 +6,7 @@ use std::io::{self, BufWriter, Write};
 builtin_metadata!(
     name = "timehistory",
     try_create = TimeHistory::new,
-    short_doc = "timehistory [-f fmt] [<n>] | -R | -C | [-L limit] [-F fmt]",
+    short_doc = "timehistory [-f fmt] [-j] [<n>] | -R | -C | [-L limit] [-F fmt]",
     long_doc = "
         Displays information about the resources used by programs executed in
         the running shell.
@@ -14,6 +14,7 @@ builtin_metadata!(
         Options:
           -f FMT\tUse FMT as the format string for every history entry,
                 \tinstead of the default value.
+          -j\tPrint information as JSON format.
           -R\tRemove all entries in the history.
           -C\tShow the current configuration.
           -F\tChange the default format string.
@@ -30,6 +31,7 @@ builtin_metadata!(
 mod format;
 mod history;
 mod ipc;
+mod jsonext;
 mod procs;
 
 #[cfg(test)]
@@ -54,6 +56,9 @@ struct TimeHistory {
 enum Opt<'a> {
     #[opt = 'f']
     Format(&'a str),
+
+    #[opt = 'j']
+    Json,
 
     #[opt = 'R']
     Reset,
@@ -107,6 +112,7 @@ impl Builtin for TimeHistory {
 
         let mut exit_after_options = false;
         let mut format = None;
+        let mut json = false;
         let mut action = Action::List;
 
         for opt in args.options() {
@@ -117,6 +123,8 @@ impl Builtin for TimeHistory {
                 }
 
                 Opt::Format(fmt) => format = Some(fmt.to_owned()),
+
+                Opt::Json => json = true,
 
                 Opt::Reset => action = Action::Reset,
 
@@ -153,12 +161,27 @@ impl Builtin for TimeHistory {
             return Ok(());
         }
 
-        let format = format.as_ref().unwrap_or(&self.default_format);
-
         match action {
-            Action::List => {
+            Action::List if json => {
+                let mut first = true;
+                output.write_all(b"[\n")?;
+
                 for entry in history.entries.iter().rev() {
-                    format::render(entry, format, &mut output)?;
+                    if !std::mem::replace(&mut first, false) {
+                        output.write_all(b",\n")?;
+                    }
+
+                    serde_json::to_writer(&mut output, entry)?;
+                }
+
+                output.write_all(b"\n]\n")?;
+            }
+
+            Action::List => {
+                let fmt = format.as_ref().unwrap_or(&self.default_format);
+
+                for entry in history.entries.iter().rev() {
+                    format::render(entry, fmt, &mut output)?;
                     output.write_all(b"\n")?;
                 }
             }
