@@ -34,7 +34,9 @@ pub fn render(entry: &Entry, format: &str, mut output: impl Write) -> io::Result
         /// Discard current specifier.
         macro_rules! discard_spec {
             () => {{
-                output.write_all(&format[last_index_at_zero..=chr_index])?;
+                if let Some(bytes) = format.get(last_index_at_zero..=chr_index) {
+                    output.write_all(bytes)?;
+                }
                 state = 0;
                 continue 'states;
             }};
