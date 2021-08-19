@@ -36,8 +36,20 @@ struct State<'a> {
 pub fn generate_parser(mut output: impl Write, specs: &[FormatSpec]) -> io::Result<()> {
     let states = state_machine(specs);
 
+    // State to discard the current specifier.
+    let discard_spec_state = states.last().unwrap().number + 1;
+    let discard_spec = format!(
+        "{{ state = {}; continue 'current_chr; }}",
+        discard_spec_state
+    );
+
     // Header.
-    output.write_all(b"match state {\n")?;
+    output.write_all(
+        b"
+            'current_chr: loop {
+                match state {
+        ",
+    )?;
 
     // Write states.
     for state in states {
@@ -51,7 +63,8 @@ pub fn generate_parser(mut output: impl Write, specs: &[FormatSpec]) -> io::Resu
                     writeln!(
                         output,
                         "// '{}'\n{}\nstate = 0;\n}},",
-                        code.sequence, code.code
+                        code.sequence,
+                        code.code.replace("discard_spec!()", &discard_spec)
                     )?;
                 }
 
@@ -62,23 +75,44 @@ pub fn generate_parser(mut output: impl Write, specs: &[FormatSpec]) -> io::Resu
         }
 
         let unknown_char = if state.number == 0 {
-            "output.write_all(&[*chr])?;"
+            "{ output.write_all(&[*chr])?; }"
         } else {
-            "discard_spec!();"
+            discard_spec.as_ref()
         };
 
         writeln!(
             output,
             "
-                    _ => {{ {} }}
-                }} // end of `match chr`
-            }}, // state = {}",
+                        _ => {}
+                    }} // end of `match chr`
+                }}, // state = {}
+            ",
             unknown_char, state.number
         )?;
     }
 
     // Footer.
-    output.write_all(b"_ => { discard_spec!(); },\n}\n")?;
+    writeln!(
+        output,
+        "
+                    {discard_spec_state} => {{
+                        if let Some(bytes) = format.get(last_index_at_zero..chr_index) {{
+                            output.write_all(bytes)?;
+                        }}
+
+                        state = 0;
+                        continue 'current_chr;
+                    }},
+
+                    _ => {discard_spec},
+                }}
+
+                break 'current_chr;
+            }} // loop 'current_chr
+        ",
+        discard_spec_state = discard_spec_state,
+        discard_spec = discard_spec
+    )?;
 
     Ok(())
 }

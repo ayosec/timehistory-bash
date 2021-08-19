@@ -15,7 +15,7 @@ pub fn render(entry: &Entry, format: &str, mut output: impl Write) -> io::Result
     let mut state = 0;
     let mut last_index_at_zero = 0;
 
-    'states: while let Some((chr_index, chr)) = input.next() {
+    while let Some((chr_index, chr)) = input.next() {
         if state == 0 {
             last_index_at_zero = chr_index;
         }
@@ -29,17 +29,6 @@ pub fn render(entry: &Entry, format: &str, mut output: impl Write) -> io::Result
             ($($e:tt)+) => {
                 write!(&mut output, $($e)+)?;
             };
-        }
-
-        /// Discard current specifier.
-        macro_rules! discard_spec {
-            () => {{
-                if let Some(bytes) = format.get(last_index_at_zero..=chr_index) {
-                    output.write_all(bytes)?;
-                }
-                state = 0;
-                continue 'states;
-            }};
         }
 
         /// Print a `rusage` field.
@@ -196,8 +185,8 @@ mod tests {
     #[test]
     fn keep_invalid_specs() {
         assert_eq!(
-            format_entry("%(pid)%(piδ%n%(pi", |_| ()).1,
-            "10000%(piδ1234%(pi"
+            format_entry("%(pid)%(piδ%(p%n%(pi", |_| ()).1,
+            "10000%(piδ%(p1234%(pi"
         );
         assert_eq!(format_entry("%nn%(time:)%(time:", |_| ()).1, "1234n%(time:");
     }
