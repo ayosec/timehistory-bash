@@ -61,6 +61,11 @@ impl History {
         }
     }
 
+    /// Compute a history entry number by an offset.
+    pub fn offset_number(&self, offset: usize) -> usize {
+        self.last_number.saturating_sub(offset - 1)
+    }
+
     /// Returns the current size.
     pub fn size(&self) -> usize {
         self.size
