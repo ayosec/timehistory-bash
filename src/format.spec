@@ -202,8 +202,8 @@
     rusage_field!(ru_nsignals);
 
 : %n
-    //! Unique identifier in the history.
-    w!(entry.unique_id);
+    //! Entry number in the history.
+    w!(entry.number);
 
 : %p %(isrss)
     //! Average unshared stack size in Kib.

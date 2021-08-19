@@ -101,7 +101,7 @@ mod tests {
         F: FnMut(&mut Entry),
     {
         let mut entry = Entry {
-            unique_id: 1234,
+            number: 1234,
             pid: 10000,
             start_time: Local.timestamp(1000000000, 9999),
             args: ["/bin/ls", "ls", "F"].iter().map(OsString::from).collect(),

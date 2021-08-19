@@ -39,7 +39,7 @@ The following resource specifiers are accepted in the format string:
 |`%c`<br>`%(nivcsw)` | Involuntary context switches. |
 |`%e` | Elapsed real time in seconds. |
 |`%k`<br>`%(nsignals)` | Signals delivered. |
-|`%n` | Unique identifier in the history. |
+|`%n` | Entry number in the history. |
 |`%p`<br>`%(isrss)` | Average unshared stack size in Kib. |
 |`%r`<br>`%(msgrcv)` | Socket messages received. |
 |`%s`<br>`%(msgsnd)` | Socket messages sent. |

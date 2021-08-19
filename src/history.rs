@@ -20,7 +20,7 @@ pub static mut OWNER_PID: libc::pid_t = 0;
 /// History entry.
 #[derive(serde::Serialize)]
 pub struct Entry {
-    pub unique_id: usize,
+    pub number: usize,
 
     pub pid: libc::pid_t,
 
@@ -47,7 +47,7 @@ pub enum State {
 
 /// History.
 pub struct History {
-    last_unique_id: usize,
+    last_number: usize,
     size: usize,
     pub entries: VecDeque<Entry>,
 }
@@ -55,7 +55,7 @@ pub struct History {
 impl History {
     fn new() -> History {
         History {
-            last_unique_id: 0,
+            last_number: 0,
             size: DEFAULT_SIZE,
             entries: VecDeque::with_capacity(DEFAULT_SIZE),
         }
@@ -80,11 +80,11 @@ impl History {
             return;
         }
 
-        self.last_unique_id += 1;
+        self.last_number += 1;
 
         self.entries.truncate(self.size - 1);
         self.entries.push_front(Entry {
-            unique_id: self.last_unique_id,
+            number: self.last_number,
             pid: event.pid,
             start_time: Local.timestamp(event.start_time.tv_sec, event.start_time.tv_nsec as u32),
             args: event.args,
