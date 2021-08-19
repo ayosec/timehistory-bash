@@ -41,7 +41,7 @@ mod tests;
 
 use std::time::Duration;
 
-const DEFAULT_FORMAT: &str = "%n\t%P\t%e\t%C";
+const DEFAULT_FORMAT: &str = "%n\t%(time:%X)\t%P\t%e\t%C";
 
 struct TimeHistory {
     /// Default format to print history entries.
