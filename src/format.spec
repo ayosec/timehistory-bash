@@ -175,14 +175,6 @@
         w!("{}", time.tv_sec * 1_000_000 + time.tv_usec);
     }
 
-: %W %(nswap)
-    //! Times swapped out.
-    rusage_field!(ru_nswap);
-
-: %X %(ixrss)
-    //! Average amount of shared text in Kib.
-    rusage_field!(ru_ixrss);
-
 : %Z %(page_size)
    //! Page size.
    w!(unsafe { libc::sysconf(libc::_SC_PAGESIZE) });
@@ -197,29 +189,9 @@
         w!("{}.{:03}", time.as_secs(), time.subsec_millis())
     }
 
-: %k %(nsignals)
-    //! Signals delivered.
-    rusage_field!(ru_nsignals);
-
 : %n
     //! Entry number in the history.
     w!(entry.number);
-
-: %p %(isrss)
-    //! Average unshared stack size in Kib.
-    rusage_field!(ru_isrss);
-
-: %r %(msgrcv)
-    //! Socket messages received.
-    rusage_field!(ru_msgrcv);
-
-: %s %(msgsnd)
-    //! Socket messages sent.
-    rusage_field!(ru_msgsnd);
-
-: %t %(idrss)
-    //! Average resident set size in Kib.
-    rusage_field!(ru_idrss);
 
 : %u
     //! Elapsed real time in microseconds.

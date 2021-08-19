@@ -33,17 +33,10 @@ The following resource specifiers are accepted in the format string:
 |`%Tx` | Exit code, if terminated normally. |
 |`%U`<br>`%(user_time)` | User time (seconds). |
 |`%(user_time_us)` | User time (microseconds). |
-|`%W`<br>`%(nswap)` | Times swapped out. |
-|`%X`<br>`%(ixrss)` | Average amount of shared text in Kib. |
 |`%Z`<br>`%(page_size)` | Page size. |
 |`%c`<br>`%(nivcsw)` | Involuntary context switches. |
 |`%e` | Elapsed real time in seconds. |
-|`%k`<br>`%(nsignals)` | Signals delivered. |
 |`%n` | Entry number in the history. |
-|`%p`<br>`%(isrss)` | Average unshared stack size in Kib. |
-|`%r`<br>`%(msgrcv)` | Socket messages received. |
-|`%s`<br>`%(msgsnd)` | Socket messages sent. |
-|`%t`<br>`%(idrss)` | Average resident set size in Kib. |
 |`%u` | Elapsed real time in microseconds. |
 |`%w`<br>`%(nvcsw)` | Voluntary context switches. |
 |`%x`<br>`%(status)` | Exit status of command. |
