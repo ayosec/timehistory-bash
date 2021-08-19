@@ -1,0 +1,16 @@
+PID:                          %(pid)
+Command:                      %C
+Time:                         %(time:%F %X %Z)
+User time:                    %U seconds
+System time:                  %S seconds
+Percent of CPU:               %P
+Elapsed time:                 %E
+Maximum resident set size:    %M Kib
+Major page faults:            %F
+Minor page faults:            %R
+Voluntary context switches:   %w
+Involuntary context switches: %c
+File system inputs:           %I
+File system outputs:          %O
+Page size (bytes):            %Z
+Exit status:                  %x

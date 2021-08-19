@@ -6,7 +6,7 @@ use std::io::{self, BufWriter, Write};
 builtin_metadata!(
     name = "timehistory",
     try_create = TimeHistory::new,
-    short_doc = "timehistory [-f fmt] [-j] [<n> | +<n>] | -R | -C | [-L limit] [-F fmt]",
+    short_doc = "timehistory [-f fmt | -v | -j] [<n> | +<n>] | -R | -C | [-L limit] [-F fmt]",
     long_doc = "
         Displays information about the resources used by programs executed in
         the running shell.
@@ -14,6 +14,7 @@ builtin_metadata!(
         Options:
           -f FMT\tUse FMT as the format string for every history entry,
                 \tinstead of the default value.
+          -v\tUse the verbose format, similar to GNU time.
           -j\tPrint information as JSON format.
           -R\tRemove all entries in the history.
           -C\tShow the current configuration.
@@ -58,6 +59,9 @@ enum Opt<'a> {
     #[opt = 'f']
     Format(&'a str),
 
+    #[opt = 'v']
+    VerboseFormat,
+
     #[opt = 'j']
     Json,
 
@@ -72,6 +76,12 @@ enum Opt<'a> {
 
     #[opt = 'L']
     SetLimit(usize),
+}
+
+enum Output {
+    Format(String),
+    Verbose,
+    Json,
 }
 
 enum Action {
@@ -112,9 +122,19 @@ impl Builtin for TimeHistory {
         // Extract options from command-line.
 
         let mut exit_after_options = false;
-        let mut format = None;
-        let mut json = false;
+        let mut output_format = None;
         let mut action = Action::List;
+
+        macro_rules! set_format {
+            ($($t:tt)+) => {{
+                if output_format.is_some() {
+                    bash_builtins::log::show_usage();
+                    return Err(bash_builtins::Error::Usage);
+                }
+
+                output_format = Some(Output::$($t)+);
+            }}
+        }
 
         for opt in args.options() {
             match opt? {
@@ -123,9 +143,11 @@ impl Builtin for TimeHistory {
                     exit_after_options = true;
                 }
 
-                Opt::Format(fmt) => format = Some(fmt.to_owned()),
+                Opt::Format(fmt) => set_format!(Format(fmt.to_owned())),
 
-                Opt::Json => json = true,
+                Opt::VerboseFormat => set_format!(Verbose),
+
+                Opt::Json => set_format!(Json),
 
                 Opt::Reset => action = Action::Reset,
 
@@ -177,9 +199,15 @@ impl Builtin for TimeHistory {
 
         args.finished()?;
 
-        let fmt = format.as_ref().unwrap_or(&self.default_format);
-        match action {
-            Action::List if json => {
+        let format = match &output_format {
+            None => Some(self.default_format.as_ref()),
+            Some(Output::Format(f)) => Some(f.as_ref()),
+            Some(Output::Verbose) => Some(include_str!("verbose.fmt")),
+            Some(Output::Json) => None,
+        };
+
+        match (action, format) {
+            (Action::List, None) => {
                 let mut first = true;
                 output.write_all(b"[\n")?;
 
@@ -194,23 +222,22 @@ impl Builtin for TimeHistory {
                 output.write_all(b"\n]\n")?;
             }
 
-            Action::List => {
+            (Action::List, Some(fmt)) => {
                 for entry in history.entries.iter().rev() {
                     format::render(entry, fmt, &mut output)?;
                     output.write_all(b"\n")?;
                 }
             }
 
-            Action::Reset => {
+            (Action::Reset, _) => {
                 history.entries.clear();
             }
 
-            Action::ShowItem(number) => {
+            (Action::ShowItem(number), output_format) => {
                 if let Some(entry) = history.entries.iter().find(|e| e.number == number) {
-                    if json {
-                        serde_json::to_writer(&mut output, entry)?;
-                    } else {
-                        format::render(entry, fmt, &mut output)?;
+                    match output_format {
+                        None => serde_json::to_writer(&mut output, entry)?,
+                        Some(fmt) => format::render(entry, fmt, &mut output)?,
                     }
 
                     output.write_all(b"\n")?;
