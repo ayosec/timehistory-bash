@@ -2,7 +2,13 @@
 name = "timehistory-bash"
 version = "0.1.0"
 edition = "2018"
+description = "Bash loadable builtin to track resources used by programs."
+readme = "README.md"
+homepage = "https://github.com/ayosec/timehistory-bash"
+repository = "https://github.com/ayosec/timehistory-bash.git"
 license = "Apache-2.0"
+keywords = [ "bash" ]
+publish = false
 
 [dependencies]
 bash-builtins = "0"
