@@ -1,0 +1,18 @@
+Source: $PACKAGE_NAME
+Section: utils
+Priority: optional
+Maintainer: $PACKAGE_AUTHOR
+Build-Depends: debhelper (>= 11),
+Standards-Version: 4.3.0
+Homepage: $PACKAGE_HOMEPAGE
+Rules-Requires-Root: no
+Vcs-Git: $PACKAGE_REPOSITORY
+
+Package: $PACKAGE_NAME
+Architecture: any
+Depends:
+ ${misc:Depends},
+ ${shlibs:Depends}
+Description: $PACKAGE_DESCRIPTION
+ A loadable builtin that records the resources used by every executed program,
+ and report them in a custom format string (like GNU time) or in JSON.

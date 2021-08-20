@@ -1,0 +1,5 @@
+$PACKAGE_NAME ($PACKAGE_VERSION) unstable; urgency=low
+
+  * Version $PACKAGE_VERSION
+
+ -- $PACKAGE_AUTHOR  $PACKAGE_DATE
