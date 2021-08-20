@@ -4,7 +4,7 @@ use std::fs::File;
 use std::io::BufWriter;
 use std::path::PathBuf;
 
-const SPEC_SOURCE: &str = "src/format.spec";
+const SPEC_SOURCE: &str = "src/format/format.spec";
 
 const PARSER_CODE: &str = "format-parser.rs";
 

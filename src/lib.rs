@@ -202,7 +202,7 @@ impl Builtin for TimeHistory {
         let format = match &output_format {
             None => Some(self.default_format.as_ref()),
             Some(Output::Format(f)) => Some(f.as_ref()),
-            Some(Output::Verbose) => Some(include_str!("verbose.fmt")),
+            Some(Output::Verbose) => Some(include_str!("format/verbose.fmt")),
             Some(Output::Json) => None,
         };
 
