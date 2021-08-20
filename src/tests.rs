@@ -1,7 +1,4 @@
-//! Run scripts in `tests/ui/*.sh`, and compare their outputs with the
-//! `.output` files.
-//!
-//! This code was adapted from the `bash_builtins` crate.
+//! Run scripts in `tests/ui/*.sh`.
 
 use std::env;
 use std::ffi::OsStr;
@@ -14,16 +11,6 @@ use serde_json as json;
 
 /// Variable to send the path of the test file.
 const TEST_FILE_VAR: &str = "TEST_FILE_PATH";
-
-macro_rules! check_output {
-    ($output:expr) => {
-        if !$output.status.success() {
-            std::io::stdout().write_all(&$output.stdout).unwrap();
-            std::io::stderr().write_all(&$output.stderr).unwrap();
-            panic!("command failed");
-        }
-    };
-}
 
 /// Invoke `cargo-build` and read its output in JSON format.
 ///
@@ -38,7 +25,9 @@ fn build() -> PathBuf {
         .output()
         .unwrap();
 
-    check_output!(build);
+    if !build.status.success() {
+        panic!("cargo-build failed");
+    }
 
     for line in build.stdout.split(|c| *c == b'\n') {
         if let Ok(msg) = json::from_slice::<json::Value>(line) {
@@ -67,9 +56,15 @@ fn create_runner_file(target: &Path) -> PathBuf {
         &mut output,
         "
             exec 2>&1
+            set -euo pipefail
+
             load_builtin() {{
                 enable -f '{}' timehistory
             }}
+
+            for lib in tests/ui/_*.sh; do
+                source $lib
+            done
 
             source ${}
         ",
@@ -112,11 +107,9 @@ fn check_ui() {
             continue;
         }
 
-        let expected_output = {
-            let mut exp_path = path.clone();
-            exp_path.set_extension("output");
-            fs::read_to_string(exp_path).unwrap_or_default()
-        };
+        if path.file_name().unwrap().to_string_lossy().starts_with("_") {
+            continue;
+        }
 
         let bash = Command::new("bash")
             .env("LC_ALL", "C")
@@ -129,28 +122,20 @@ fn check_ui() {
 
         // Wait until the script is done.
         let output = bash.wait_with_output().unwrap();
-        check_output!(output);
-
-        // Capture output and compare with the expected one.
-        //
-        // The path of the runner script is replaced with "$RUNNER".
-        let test_output = String::from_utf8(output.stdout)
-            .unwrap()
-            .replace(test_runner.to_str().unwrap_or_default(), "$RUNNER");
-
-        if test_output != expected_output {
-            let test_name = path.file_name().unwrap();
-            let mut output_copy = target.join(test_name);
-            output_copy.set_extension("current-output");
-
+        if !output.status.success() {
             failed += 1;
-            eprintln!("### {}: failed", path.display());
-            eprintln!("=== OUTPUT ({})\n{}\n", output_copy.display(), test_output);
-            eprintln!("=== EXPECTED\n{}\n", expected_output);
 
-            fs::write(output_copy, test_output).unwrap();
+            let header = format!("==== [FAIL] {} ====", path.display());
+            let footer = (0..header.len()).map(|_| '=').collect::<String>();
+
+            eprintln!(
+                "{}\n{}\n{}",
+                header,
+                String::from_utf8_lossy(&output.stdout),
+                footer
+            );
         }
-    }
 
-    assert_eq!(failed, 0);
+        assert_eq!(failed, 0);
+    }
 }

@@ -1,3 +1,5 @@
+# Test for the history limit.
+
 load_builtin
 
 timehistory -L 5
@@ -6,4 +8,12 @@ do
   /bin/true $N
 done
 
-timehistory -f '%n\t%C'
+ASSERT_OUTPUT \
+  "timehistory -f '%n,%C'" \
+  <<-ITEMS
+	6,/bin/true 6
+	7,/bin/true 7
+	8,/bin/true 8
+	9,/bin/true 9
+	10,/bin/true 10
+ITEMS

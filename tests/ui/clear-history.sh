@@ -1,9 +1,9 @@
+# Test for the clear history option.
+
 load_builtin
 
 /bin/true
-timehistory -f '%C'
+test -n "$(timehistory)"
 
-echo .
 timehistory -R
-timehistory
-echo .
+test -z "$(timehistory)"

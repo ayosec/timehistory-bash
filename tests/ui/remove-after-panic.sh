@@ -1,16 +1,22 @@
+# Test to use the shell session after a panic in the builtin.
+
 load_builtin
 
 type timehistory
 
 /bin/true
-timehistory -f '- %n'
+ASSERT_OUTPUT \
+  "timehistory -f '- %n'" \
+  "- 1"
 
 # Force a panic.
-timehistory -P &> /dev/null
-timehistory
+ASSERT_FAILS timehistory -P
+ASSERT_FAILS timehistory
 
 /bin/echo 2
 enable -d timehistory
-type timehistory
+ASSERT_FAILS type timehistory
 
-/bin/echo 3
+ASSERT_OUTPUT \
+  "/bin/echo 3" \
+  "3"
