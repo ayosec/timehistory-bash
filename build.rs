@@ -21,7 +21,7 @@ fn main() {
     let specs = generator::source::parse_specs(SPEC_SOURCE).expect("Failed to parse SPEC_SOURCE");
 
     // Documentation items.
-    let doc_items: Vec<_> = specs.iter().map(|s| s.documentation_item()).collect();
+    let doc_items = generator::docs::collect_items(&specs);
 
     // Format parser.
     let parser = File::create(out_dir.join(PARSER_CODE)).unwrap();

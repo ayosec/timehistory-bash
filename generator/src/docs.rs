@@ -1,6 +1,5 @@
 //! Generate files for documentation.
 
-use crate::DocumentationItem;
 use std::io::{self, Write};
 
 /// Template for the plain-text documentation.
@@ -8,6 +7,42 @@ const TEMPLATE_TXT: &str = include_str!("doc.txt");
 
 /// Template for the markdown documentation.
 const TEMPLATE_MD: &str = include_str!("doc.md");
+
+#[derive(Eq, PartialOrd, PartialEq, Ord)]
+pub struct DocumentationItem<'a> {
+    specs: String,
+    doc: &'a str,
+}
+
+/// Convert a `FormatSpec` items to `DocumentationItem`.
+pub fn collect_items(specs: &[super::FormatSpec]) -> Vec<DocumentationItem> {
+    let mut items: Vec<_> = specs
+        .iter()
+        .map(|format_spec| {
+            let specs = match &format_spec.doc_alias {
+                Some(alias) => alias.clone(),
+                None => format_spec.sequences.join(" "),
+            };
+
+            DocumentationItem {
+                specs,
+                doc: format_spec.description.as_ref(),
+            }
+        })
+        .collect();
+
+    // Sort alphabetically, but put '\' sequences before '%'.
+    items.sort_by_cached_key(|a| {
+        let s = a.specs.to_lowercase();
+        if s.starts_with('\\') {
+            s.replacen('\\', "!", 1)
+        } else {
+            s
+        }
+    });
+
+    items
+}
 
 /// Read documentation items from the `format.spec` file, and generates a
 /// plain text file for the `-f help` option.
