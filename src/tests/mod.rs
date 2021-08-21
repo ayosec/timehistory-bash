@@ -1,4 +1,4 @@
-//! Run scripts in `tests/ui/*.sh`.
+//! Run scripts in `shell/*.sh`.
 
 use std::env;
 use std::ffi::OsStr;
@@ -62,7 +62,7 @@ fn create_runner_file(target: &Path) -> PathBuf {
                 enable -f '{}' timehistory
             }}
 
-            for lib in tests/ui/_*.sh; do
+            for lib in src/tests/shell/_*.sh; do
                 source $lib
             done
 
@@ -77,7 +77,7 @@ fn create_runner_file(target: &Path) -> PathBuf {
 }
 
 #[test]
-fn check_ui() {
+fn run_shell_tests() {
     let target = {
         let mut target = match env::var_os("CARGO_TARGET_DIR") {
             Some(t) => PathBuf::from(t),
@@ -89,7 +89,7 @@ fn check_ui() {
             }
         };
 
-        target.push("ui");
+        target.push("shell");
         target.push(env::var_os("CARGO_PKG_NAME").unwrap());
 
         std::fs::create_dir_all(&target).unwrap();
@@ -100,7 +100,7 @@ fn check_ui() {
     let test_runner = create_runner_file(&target);
 
     let mut failed = 0;
-    for source in fs::read_dir("tests/ui").unwrap() {
+    for source in fs::read_dir("src/tests/shell").unwrap() {
         let path = source.unwrap().path();
 
         if path.extension() != Some(OsStr::new("sh")) {
