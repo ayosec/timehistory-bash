@@ -10,6 +10,8 @@ use std::io::{self, Write};
 #[derive(Copy, Clone)]
 struct Code<'a> {
     code: &'a str,
+    header_label: Option<&'a str>,
+    header_label_until: Option<u8>,
     sequence: &'a str,
 }
 
@@ -33,7 +35,15 @@ struct State<'a> {
 }
 
 /// Generate the parser code.
-pub fn generate_parser(mut output: impl Write, specs: &[FormatSpec]) -> io::Result<()> {
+///
+/// If `render_fields` is `true`, the generated parser contains code to read
+/// values from history entries. If it is `false`, the parser writes the labels
+/// of every resource specifier.
+pub fn generate_parser(
+    mut output: impl Write,
+    specs: &[FormatSpec],
+    render_fields: bool,
+) -> io::Result<()> {
     let states = state_machine(specs);
 
     // State to discard the current specifier.
@@ -60,12 +70,32 @@ pub fn generate_parser(mut output: impl Write, specs: &[FormatSpec]) -> io::Resu
 
             match node {
                 Transition::Code(code) => {
-                    writeln!(
-                        output,
-                        "// '{}'\n{}\nstate = 0;\n}},",
-                        code.sequence,
-                        code.code.replace("discard_spec!()", &discard_spec)
-                    )?;
+                    let expr = match (render_fields, code.header_label) {
+                        (false, Some(label)) => {
+                            let until = match code.header_label_until {
+                                Some(byte) => {
+                                    format!(
+                                        "
+                                        loop {{
+                                            if matches!(input.next(), None | Some((_, {}))) {{
+                                                break;
+                                            }}
+                                        }}
+                                        ",
+                                        byte
+                                    )
+                                }
+
+                                None => String::new(),
+                            };
+
+                            format!("output.write_all(b{:?})?;{}", label, until)
+                        }
+
+                        _ => code.code.replace("discard_spec!()", &discard_spec),
+                    };
+
+                    writeln!(output, "// '{}'\n{}\nstate = 0;\n}},", code.sequence, expr,)?;
                 }
 
                 Transition::State(state) => {
@@ -147,6 +177,8 @@ fn state_machine(specs: &[FormatSpec]) -> Vec<State> {
                 } else {
                     let item = TreeNode::Code(Code {
                         code: &spec.parser_code,
+                        header_label: spec.header_label.as_deref(),
+                        header_label_until: spec.header_label_until,
                         sequence: seq,
                     });
 

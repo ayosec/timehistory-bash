@@ -61,6 +61,7 @@
 // Specifiers.
 
 : %C %(args)
+    //! [label] COMMAND
     //! Command name and arguments.
     let mut need_space = false;
     for arg in entry.args.iter().skip(1) {
@@ -72,6 +73,7 @@
     }
 
 : %E
+    //! [label] ELAPSED
     //! Elapsed real (wall clock) time in [hour:]min:sec.
     if let State::Finished { running_time: Some(time), .. } = &entry.state {
         let (secs, ms) = (time.as_secs(), time.subsec_millis());
@@ -83,22 +85,27 @@
     }
 
 : %F %(majflt)
+    //! [label]  MAJOR FLT.
     //! Major page faults (required physical I/O).
     rusage_field!(ru_majflt);
 
 : %I %(inblock)
+    //! [label]  INPUT OPS.
     //! File system inputs.
     rusage_field!(ru_inblock);
 
 : %M %(maxrss)
+    //! [label] MAX. RSS
     //! Maximum resident set size in Kib.
     rusage_field!(ru_maxrss);
 
 : %O %(oublock)
+    //! [label] OUTPUT OPS.
     //! File system outputs.
     rusage_field!(ru_oublock);
 
 : %P %(cpu)
+    //! [label] %CPU
     //! Percent of CPU this job got.
     if let State::Finished { running_time: Some(time), rusage, .. } = &entry.state {
         // Use milliseconds instead of microseconds to avoid weird values for
@@ -118,10 +125,12 @@
     }
 
 : %R %(minflt)
+    //! [label]  MINOR FLT.
     //! Minor page faults (reclaims; no physical I/O involved).
     rusage_field!(ru_minflt);
 
 : %S %(sys_time)
+    //! [label] SYS. TIME
     //! System (kernel) time (seconds).
     if let State::Finished { rusage, .. } =  &entry.state {
         let time = &rusage.ru_stime;
@@ -129,6 +138,7 @@
     }
 
 : %(sys_time_us)
+    //! [label] SYS. TIME
     //! System (kernel) time (microseconds).
     if let State::Finished { rusage, .. } =  &entry.state {
         let time = &rusage.ru_stime;
@@ -136,6 +146,7 @@
     }
 
 : %Tt
+    //! [label] TERMINATION
     //! Termination type: normal, signalled, stopped.
     if let State::Finished { status, .. } = &entry.state {
         w!(
@@ -146,6 +157,7 @@
     }
 
 : %Tn
+    //! [label] SIGNAL
     //! Signal number, if terminated by a signal.
     if let State::Finished { status, .. } = &entry.state {
         if libc::WIFSIGNALED(*status) {
@@ -154,6 +166,7 @@
     }
 
 : %Tx
+    //! [label] EXIT
     //! Exit code, if terminated normally.
     if let State::Finished { status, .. } = &entry.state {
         if libc::WIFEXITED(*status) {
@@ -162,6 +175,7 @@
     }
 
 : %U %(user_time)
+    //! [label] USER TIME
     //! User time (seconds).
     if let State::Finished { rusage, .. } =  &entry.state {
         let time = &rusage.ru_utime;
@@ -169,6 +183,7 @@
     }
 
 : %(user_time_us)
+    //! [label] USER TIME
     //! User time (microseconds).
     if let State::Finished { rusage, .. } =  &entry.state {
         let time = &rusage.ru_utime;
@@ -176,44 +191,54 @@
     }
 
 : %Z %(page_size)
+    //! [label] PAGE SIZE
    //! Page size.
    w!(unsafe { libc::sysconf(libc::_SC_PAGESIZE) });
 
 : %c %(nivcsw)
+    //! [label] IVCSW
     //! Involuntary context switches.
     rusage_field!(ru_nivcsw);
 
 : %e
+    //! [label] ELAPSED
     //! Elapsed real time in seconds.
     if let State::Finished { running_time: Some(time), .. } = &entry.state {
         w!("{}.{:03}", time.as_secs(), time.subsec_millis())
     }
 
 : %n
+    //! [label] NUMBER
     //! Entry number in the history.
     w!(entry.number);
 
 : %u
+    //! [label] ELAPSED
     //! Elapsed real time in microseconds.
     if let State::Finished { running_time: Some(time), .. } = &entry.state {
         w!("{}", time.as_micros())
     }
 
 : %w %(nvcsw)
+    //! [label] VCSW
     //! Voluntary context switches.
     rusage_field!(ru_nvcsw);
 
 : %x %(status)
+    //! [label] STATUS
     //! Exit status of command.
     if let State::Finished { status, .. } = &entry.state {
         w!(*status);
     }
 
 : %(pid)
+    //! [label] PID
     //! Process identifier.
     w!(entry.pid);
 
 : %(time:
+    //! [label] TIME
+    //! [label-until] )
     //! [alias] %(time:FORMAT)
     //! Start time with a custom format.
 

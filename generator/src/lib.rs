@@ -8,6 +8,8 @@ pub mod source;
 pub struct FormatSpec {
     sequences: Vec<String>,
     doc_alias: Option<String>,
+    header_label: Option<String>,
+    header_label_until: Option<u8>,
     description: String,
     parser_code: String,
 }

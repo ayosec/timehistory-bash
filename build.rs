@@ -8,6 +8,8 @@ const SPEC_SOURCE: &str = "src/format/format.spec";
 
 const PARSER_CODE: &str = "format-parser.rs";
 
+const LABELS_CODE: &str = "labels-parser.rs";
+
 const DOC_PLAIN_TEXT: &str = "doc.txt";
 
 const DOC_MARKDOWN: &str = "FORMAT.md";
@@ -25,8 +27,13 @@ fn main() {
 
     // Format parser.
     let parser = File::create(out_dir.join(PARSER_CODE)).unwrap();
-    generator::parser::generate_parser(BufWriter::new(parser), &specs)
+    generator::parser::generate_parser(BufWriter::new(parser), &specs, true)
         .expect("Failed to generate parser code.");
+
+    // Format parser to write labels.
+    let parser = File::create(out_dir.join(LABELS_CODE)).unwrap();
+    generator::parser::generate_parser(BufWriter::new(parser), &specs, false)
+        .expect("Failed to generate parser code for labels.");
 
     // Plain text documentation.
     let doc_txt = File::create(out_dir.join(DOC_PLAIN_TEXT)).unwrap();

@@ -51,6 +51,41 @@ pub fn render(entry: &Entry, format: &str, mut output: impl Write) -> io::Result
     Ok(())
 }
 
+/// Put labels on a format string.
+pub fn labels(format: &str, mut output: impl Write) -> io::Result<()> {
+    let format = format.as_bytes();
+    let mut input = format.iter().enumerate();
+
+    let mut state = 0;
+    let mut last_index_at_zero = 0;
+
+    while let Some((chr_index, chr)) = input.next() {
+        if state == 0 {
+            last_index_at_zero = chr_index;
+        }
+
+        /// Write to the output.
+        macro_rules! w {
+            ($e:expr) => {
+                write!(&mut output, "{}", $e)?;
+            };
+
+            ($($e:tt)+) => {
+                write!(&mut output, $($e)+)?;
+            };
+        }
+
+        include!(concat!(env!("OUT_DIR"), "/labels-parser.rs"));
+    }
+
+    // Copy raw format string if the last specifier was incompleted.
+    if state != 0 {
+        output.write_all(&format[last_index_at_zero..])?;
+    }
+
+    Ok(())
+}
+
 /// Escape a byte sequence to be used as a command-line argument.
 pub struct EscapeArgument<'a>(pub &'a [u8]);
 
@@ -200,6 +235,20 @@ mod tests {
         assert_eq!(
             EscapeArgument("α β".as_bytes()).to_string(),
             r#"'\xce\xb1 \xce\xb2'"#
+        );
+    }
+
+    #[test]
+    fn render_labels() {
+        let mut output = vec![];
+        super::labels(
+            "%(pid) - %(pi%(maxrss) - %(time:%F %X) - \\u{221e}",
+            &mut output,
+        )
+        .unwrap();
+        assert_eq!(
+            std::str::from_utf8(&output),
+            Ok("PID - %(piMAX. RSS - TIME - \u{221e}")
         );
     }
 }
