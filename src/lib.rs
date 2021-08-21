@@ -6,12 +6,13 @@ use std::io::{self, BufWriter, Write};
 builtin_metadata!(
     name = "timehistory",
     try_create = TimeHistory::new,
-    short_doc = "timehistory [-f fmt | -v | -j] [<n> | +<n>] | -R | -C | [-L limit] [-F fmt]",
+    short_doc = "timehistory [-h -f fmt | -v | -j] [<n> | +<n>] | -R | -C | [-L limit] [-F fmt]",
     long_doc = "
         Displays information about the resources used by programs executed in
         the running shell.
 
         Options:
+          -h\tDisplay a header with field labels.
           -f FMT\tUse FMT as the format string for every history entry,
                 \tinstead of the default value.
           -v\tUse the verbose format, similar to GNU time.
@@ -50,6 +51,9 @@ struct TimeHistory {
 
 #[derive(BuiltinOptions)]
 enum Opt<'a> {
+    #[opt = 'h']
+    Header,
+
     #[opt = 'f']
     Format(&'a str),
 
@@ -119,6 +123,7 @@ impl Builtin for TimeHistory {
         // Extract options from command-line.
 
         let mut exit_after_options = false;
+        let mut show_header = false;
         let mut output_format = None;
         let mut action = Action::List;
 
@@ -135,6 +140,8 @@ impl Builtin for TimeHistory {
 
         for opt in args.options() {
             match opt? {
+                Opt::Header => show_header = true,
+
                 Opt::Format("help") => {
                     output.write_all(format::HELP)?;
                     exit_after_options = true;
@@ -205,6 +212,15 @@ impl Builtin for TimeHistory {
             Some(Output::Verbose) => Some(include_str!("format/verbose.fmt")),
             Some(Output::Json) => None,
         };
+
+        if show_header {
+            if let Some(fmt) = &format {
+                format::labels(fmt, &mut output)?;
+                output.write_all(b"\n")?;
+            } else {
+                bash_builtins::warning!("header not available in JSON output.");
+            }
+        }
 
         match (action, format) {
             (Action::List, None) => {
