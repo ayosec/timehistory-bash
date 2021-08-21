@@ -1,9 +1,9 @@
 //! Run scripts in `shell/*.sh`.
 
 use std::env;
-use std::ffi::OsStr;
 use std::fs::{self, File};
 use std::io::{BufWriter, Write};
+use std::os::unix::ffi::OsStrExt;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 
@@ -103,19 +103,20 @@ fn run_shell_tests() {
     for source in fs::read_dir("src/tests/shell").unwrap() {
         let path = source.unwrap().path();
 
-        if path.extension() != Some(OsStr::new("sh")) {
+        if !path.file_name().unwrap().as_bytes().ends_with(b".test.sh") {
             continue;
         }
 
-        if path.file_name().unwrap().to_string_lossy().starts_with("_") {
-            continue;
-        }
+        // File to store the output of the script.
+        let output_path = target
+            .join(path.file_name().unwrap())
+            .with_extension("output");
 
         let bash = Command::new("bash")
             .env("LC_ALL", "C")
             .env(TEST_FILE_VAR, &path)
             .stdin(Stdio::null())
-            .stdout(Stdio::piped())
+            .stdout(File::create(&output_path).unwrap())
             .arg(&test_runner)
             .spawn()
             .unwrap();
@@ -131,11 +132,11 @@ fn run_shell_tests() {
             eprintln!(
                 "{}\n{}\n{}",
                 header,
-                String::from_utf8_lossy(&output.stdout),
+                String::from_utf8_lossy(&fs::read(output_path).unwrap()),
                 footer
             );
         }
-
-        assert_eq!(failed, 0);
     }
+
+    assert_eq!(failed, 0);
 }
