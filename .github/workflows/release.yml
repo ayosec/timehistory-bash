@@ -1,0 +1,75 @@
+name: Release Assets
+
+on:
+  push:
+    tags:
+      - "v*"
+
+jobs:
+  release_draft:
+    name: Create Release
+    runs-on: ubuntu-18.04
+    steps:
+      - id: create_release
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: ${{ github.ref }}
+          release_name: Draft ${{ github.ref }}
+          draft: true
+    outputs:
+      upload_url: ${{ steps.create_release.outputs.upload_url }}
+
+  build:
+    name: Binary for ${{ matrix.os }}
+    needs: release_draft
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ ubuntu-18.04 ]
+        include:
+          - os: ubuntu-18.04
+            package: timehistory-bash-linux-ARCH.tar.gz
+    steps:
+      - uses: actions/checkout@v2
+
+      - name: Rust ${{ matrix.rust }}.
+        uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: stable
+
+      - name: Build shared object.
+        uses: actions-rs/cargo@v1
+        with:
+          command: build
+          args: --release
+
+      - name: Test the shared object.
+        run: |
+          set -xe
+          strip --strip-debug ./target/release/libtimehistory_bash.so
+          enable -f ./target/release/libtimehistory_bash.so timehistory
+          uname -a
+          timehistory
+
+      - name: Package.
+        run: |
+          set -xe
+          tar -czf ${{ matrix.package }} -C target/release libtimehistory_bash.so
+
+      - id: asset_name_generator
+        name: Set asset name
+        shell: bash
+        run: |
+          echo "::set-output name=name::${{ matrix.package }}" | sed "s/ARCH/$(uname -m)/g"
+
+      - uses: actions/upload-release-asset@v1
+        with:
+          upload_url: ${{ needs.release_draft.outputs.upload_url }}
+          asset_path: ${{ matrix.package }}
+          asset_name: ${{ steps.asset_name_generator.outputs.name }}
+          asset_content_type: application/octet-stream
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
