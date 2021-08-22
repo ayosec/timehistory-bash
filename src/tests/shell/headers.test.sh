@@ -2,6 +2,7 @@
 
 load_builtin
 
+timehistory -s header=true
 ASSERT_OUTPUT \
-  "timehistory -h -f '%n %C'" \
+  "timehistory -f '%n %C'" \
   "NUMBER COMMAND"

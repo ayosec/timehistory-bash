@@ -1,33 +1,44 @@
 //! timehistory bash builtin
 
-use bash_builtins::{builtin_metadata, Args, Builtin, BuiltinOptions, Result as BuiltinResult};
+use bash_builtins::{builtin_metadata, Args, Builtin, BuiltinOptions};
+use bash_builtins::{Error::Usage, Result as BuiltinResult};
 use std::io::{self, BufWriter, Write};
 
 builtin_metadata!(
     name = "timehistory",
     try_create = TimeHistory::new,
-    short_doc = "timehistory [-h -f fmt | -v | -j] [<n> | +<n>] | -R | -C | [-L limit] [-F fmt]",
+    short_doc = "timehistory [-f FMT | -v | -j] [<n> | +<n>] | -s SET | -R",
     long_doc = "
         Displays information about the resources used by programs executed in
         the running shell.
 
         Options:
-          -h\tDisplay a header with field labels.
           -f FMT\tUse FMT as the format string for every history entry,
                 \tinstead of the default value.
           -v\tUse the verbose format, similar to GNU time.
           -j\tPrint information as JSON format.
+          -s SET\tChange the value of a setting. See below.
           -R\tRemove all entries in the history.
-          -C\tShow the current configuration.
-          -F\tChange the default format string.
-          -L\tChange the history limit.
 
-        Use '-f help' to get information about the formatting syntax.
+        If <n> is given, it displays information for a specific history entry.
+        The number for every entry is printed with the %n specifier in the
+        format string. If the number is prefixed with a plus symbol (+<n>) it
+        is the offset from the end of the list ('+1' is the last entry).
 
-        If <n> is given, it displays all information for a specific history
-        entry. The number for every entry is printed with the %n specifier in
-        the format string. If the number is prefixed with a plus symbol (+<n>)
-        it is the offset from the end of the list ('+1' is the last entry).
+        Format:
+          Use '-f help' to get information about the formatting syntax.
+
+        Settings:
+          The following settings are available:
+
+            format\tDefault format string.
+            header\tShow a header with the labels of every resource.
+            limit\tHistory limit.
+
+          To change a setting, use '-s name=value', where 'name' is any of the
+          previous values. Use one '-s' for every setting to change.
+
+          To see the current values use '-c show'.
     ",
 );
 
@@ -42,18 +53,18 @@ mod tests;
 
 use std::time::Duration;
 
-const DEFAULT_FORMAT: &str = "%n\t%(time:%X)\t%P\t%e\t%C";
+const DEFAULT_FORMAT: &str = "%n\\t%(time:%X)\\t%P\\t%e\\t%C";
 
 struct TimeHistory {
     /// Default format to print history entries.
     default_format: String,
+
+    /// Show header with field labels.
+    show_header: bool,
 }
 
 #[derive(BuiltinOptions)]
 enum Opt<'a> {
-    #[opt = 'h']
-    Header,
-
     #[opt = 'f']
     Format(&'a str),
 
@@ -66,14 +77,8 @@ enum Opt<'a> {
     #[opt = 'R']
     Reset,
 
-    #[opt = 'C']
-    PrintConfig,
-
-    #[opt = 'F']
-    SetDefaultFormat(String),
-
-    #[opt = 'L']
-    SetLimit(usize),
+    #[opt = 's']
+    Setting(&'a str),
 
     #[cfg(feature = "option-for-panics")]
     #[opt = 'P']
@@ -106,6 +111,7 @@ impl TimeHistory {
 
         Ok(TimeHistory {
             default_format: DEFAULT_FORMAT.into(),
+            show_header: false,
         })
     }
 }
@@ -123,7 +129,6 @@ impl Builtin for TimeHistory {
         // Extract options from command-line.
 
         let mut exit_after_options = false;
-        let mut show_header = false;
         let mut output_format = None;
         let mut action = Action::List;
 
@@ -131,7 +136,7 @@ impl Builtin for TimeHistory {
             ($($t:tt)+) => {{
                 if output_format.is_some() {
                     bash_builtins::log::show_usage();
-                    return Err(bash_builtins::Error::Usage);
+                    return Err(Usage);
                 }
 
                 output_format = Some(Output::$($t)+);
@@ -140,8 +145,6 @@ impl Builtin for TimeHistory {
 
         for opt in args.options() {
             match opt? {
-                Opt::Header => show_header = true,
-
                 Opt::Format("help") => {
                     output.write_all(format::HELP)?;
                     exit_after_options = true;
@@ -155,29 +158,41 @@ impl Builtin for TimeHistory {
 
                 Opt::Reset => action = Action::Reset,
 
-                Opt::PrintConfig => {
-                    writeln!(
-                        &mut output,
-                        "-L {} -F {}",
-                        history.size(),
-                        format::EscapeArgument(self.default_format.as_bytes())
-                    )?;
-
+                Opt::Setting("show") => {
+                    self.print_config(&mut output, &history)?;
                     exit_after_options = true;
                 }
 
-                Opt::SetDefaultFormat(fmt) => {
-                    self.default_format = if fmt.is_empty() {
-                        DEFAULT_FORMAT.into()
-                    } else {
-                        fmt
-                    };
+                Opt::Setting(setting) => {
+                    let mut parts = setting.splitn(2, '=');
+                    match (parts.next(), parts.next()) {
+                        (Some("limit"), Some(value)) => {
+                            history.set_size(value.parse()?);
+                        }
 
-                    exit_after_options = true;
-                }
+                        (Some("header"), Some(value)) => {
+                            self.show_header = value.parse()?;
+                        }
 
-                Opt::SetLimit(l) => {
-                    history.set_size(l as usize);
+                        (Some("format"), Some(value)) => {
+                            self.default_format = if value.is_empty() {
+                                DEFAULT_FORMAT.into()
+                            } else {
+                                value.to_owned()
+                            };
+                        }
+
+                        (Some(name), _) => {
+                            bash_builtins::error!("{}: invalid setting", name);
+                            return Err(Usage);
+                        }
+
+                        _ => {
+                            bash_builtins::error!("{}: missing value", setting);
+                            return Err(Usage);
+                        }
+                    }
+
                     exit_after_options = true;
                 }
 
@@ -213,7 +228,7 @@ impl Builtin for TimeHistory {
             Some(Output::Json) => None,
         };
 
-        if show_header {
+        if self.show_header {
             if let Some(fmt) = &format {
                 format::labels(fmt, &mut output)?;
                 output.write_all(b"\n")?;
@@ -260,6 +275,22 @@ impl Builtin for TimeHistory {
                 }
             }
         }
+
+        Ok(())
+    }
+}
+
+impl TimeHistory {
+    fn print_config(&self, mut output: impl Write, history: &history::History) -> io::Result<()> {
+        writeln!(
+            &mut output,
+            "format={}\n\
+             header={}\n\
+             limit={}",
+            self.default_format,
+            self.show_header,
+            history.size(),
+        )?;
 
         Ok(())
     }

@@ -2,7 +2,7 @@
 
 load_builtin
 
-timehistory -L 5
+timehistory -s limit=5
 for N in {1..10}
 do
   /bin/true $N
