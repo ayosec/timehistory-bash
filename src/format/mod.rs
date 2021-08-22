@@ -6,12 +6,14 @@ use std::mem;
 use std::os::unix::ffi::OsStrExt;
 
 mod escapes;
+mod options;
 mod tables;
 
 #[cfg(test)]
 mod tests;
 
 pub use escapes::EscapeArgument;
+pub use options::FormatOptions;
 pub use tables::TableWriter;
 
 pub const HELP: &[u8] = include_bytes!(concat!(env!("OUT_DIR"), "/doc.txt"));

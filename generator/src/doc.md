@@ -14,6 +14,24 @@ The following resource specifiers are accepted in the format string:
 |------------|-------------|
 %SPECS%
 
+## Options
+
+Options are surrounded by brackets at the beginning of the format string. There
+are two valid options:
+
+* `header`
+
+    Print a header containing the field labels.
+
+* `table`
+
+    Render the history list as a table. Columns are separated by the tab
+    character.
+
+Example:
+
+    [header,table]%n\t%e\t%C
+
 ## Date/Time Format
 
 The syntax for the `%(time)` specifier is from the [chrono library].

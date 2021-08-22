@@ -32,9 +32,7 @@ builtin_metadata!(
           The following settings are available:
 
             format\tDefault format string.
-            header\tShow a header with the labels of every resource.
             limit\tHistory limit.
-            table\tRender the history list as a table.
 
           To change a setting, use '-s name=value', where 'name' is any of the
           previous values. Use one '-s' for every setting to change.
@@ -54,17 +52,11 @@ mod tests;
 
 use std::time::Duration;
 
-const DEFAULT_FORMAT: &str = "%n\\t%(time:%X)\\t%P\\t%e\\t%C";
+const DEFAULT_FORMAT: &str = "[header,table]%n\\t%(time:%X)\\t%P\\t%e\\t%C";
 
 struct TimeHistory {
     /// Default format to print history entries.
     default_format: String,
-
-    /// Show header with field labels.
-    show_header: bool,
-
-    /// Render lists as a table.
-    render_table: bool,
 }
 
 #[derive(BuiltinOptions)]
@@ -115,8 +107,6 @@ impl TimeHistory {
 
         Ok(TimeHistory {
             default_format: DEFAULT_FORMAT.into(),
-            show_header: false,
-            render_table: false,
         })
     }
 }
@@ -176,22 +166,6 @@ impl Builtin for TimeHistory {
                             history.set_size(value.parse()?);
                         }
 
-                        (Some("header"), None) => {
-                            self.show_header = true;
-                        }
-
-                        (Some("header"), Some(value)) => {
-                            self.show_header = value.parse()?;
-                        }
-
-                        (Some("table"), Some(value)) => {
-                            self.render_table = value.parse()?;
-                        }
-
-                        (Some("table"), None) => {
-                            self.render_table = true;
-                        }
-
                         (Some("format"), Some(value)) => {
                             self.default_format = if value.is_empty() {
                                 DEFAULT_FORMAT.into()
@@ -246,25 +220,22 @@ impl Builtin for TimeHistory {
             Some(Output::Json) => None,
         };
 
-        // Use headers/tables.
-        let decorate = matches!(&output_format, None | Some(Output::Format(_)));
+        let format = format.map(format::FormatOptions::parse);
 
         // Render output as a table.
-        if decorate && self.render_table {
-            table_writer = format::tables::TableWriter::new(output);
-            output = &mut table_writer as &mut dyn Write;
-        }
+        if let Some(options) = &format {
+            if options.table {
+                table_writer = format::TableWriter::new(output);
+                output = &mut table_writer as &mut dyn Write;
+            }
 
-        if decorate && self.show_header {
-            if let Some(fmt) = &format {
-                format::labels(fmt, &mut output)?;
+            if options.header {
+                format::labels(options.format, &mut output)?;
                 output.write_all(b"\n")?;
-            } else {
-                bash_builtins::warning!("header not available in JSON output.");
             }
         }
 
-        match (action, format) {
+        match (action, format.map(|f| f.format)) {
             (Action::List, None) => {
                 let mut first = true;
                 output.write_all(b"[\n")?;
@@ -315,14 +286,10 @@ impl TimeHistory {
             &mut output,
             "\
              format = {}\n\
-             header = {}\n\
              limit  = {}\n\
-             table  = {}\n\
             ",
             self.default_format,
-            self.show_header,
             history.size(),
-            self.render_table,
         )?;
 
         Ok(())

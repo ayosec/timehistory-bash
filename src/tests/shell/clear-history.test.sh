@@ -2,6 +2,8 @@
 
 load_builtin
 
+timehistory -s format='%n'
+
 /bin/true
 test -n "$(timehistory)"
 

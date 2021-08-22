@@ -9,9 +9,7 @@ ASSERT_OUTPUT \
   "timehistory -s" \
   <<-'ITEMS'
 	format = %n\t%P\t%C
-	header = false
 	limit  = 5000
-	table  = false
 ITEMS
 
 timehistory -s format='> %C'
