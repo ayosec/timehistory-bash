@@ -5,6 +5,8 @@ use std::io::{self, Write};
 use std::os::unix::ffi::OsStrExt;
 use std::{fmt, mem};
 
+pub mod tables;
+
 pub const HELP: &[u8] = include_bytes!(concat!(env!("OUT_DIR"), "/doc.txt"));
 
 /// Render a format string with data from a `Entry` instance.

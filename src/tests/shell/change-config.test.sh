@@ -6,11 +6,12 @@ load_builtin
 timehistory -s limit=5000 -s format='%n\t%P\t%C'
 
 ASSERT_OUTPUT \
-  "timehistory -s show" \
+  "timehistory -s" \
   <<-'ITEMS'
-	format=%n\t%P\t%C
-	header=false
-	limit=5000
+	format = %n\t%P\t%C
+	header = false
+	limit  = 5000
+	table  = false
 ITEMS
 
 timehistory -s format='> %C'
