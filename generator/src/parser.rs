@@ -4,6 +4,8 @@
 //! in a single pass.
 
 use crate::FormatSpec;
+use proc_macro2::TokenStream;
+use quote::quote;
 use std::collections::BTreeMap;
 use std::io::{self, Write};
 
@@ -20,7 +22,7 @@ enum TreeNode<'a> {
 
     Partial {
         state: usize,
-        nodes: BTreeMap<char, TreeNode<'a>>,
+        nodes: BTreeMap<u8, TreeNode<'a>>,
     },
 }
 
@@ -31,7 +33,7 @@ enum Transition<'a> {
 
 struct State<'a> {
     number: usize,
-    transitions: Vec<(char, Transition<'a>)>,
+    transitions: Vec<(u8, Transition<'a>)>,
 }
 
 /// Generate the parser code.
@@ -46,116 +48,174 @@ pub fn generate_parser(
 ) -> io::Result<()> {
     let states = state_machine(specs);
 
-    // State to discard the current specifier.
-    let discard_spec_state = states.last().unwrap().number + 1;
-    let discard_spec = format!(
-        "{{ state = {}; continue 'current_chr; }}",
-        discard_spec_state
-    );
+    // Compute states.
+    let match_branches = states.iter().map(|state| {
+        let state_number = state.number;
 
-    // Header.
-    output.write_all(
-        b"
-            'current_chr: loop {
-                match state {
-        ",
-    )?;
-
-    // Write states.
-    for state in states {
-        writeln!(output, "{} => {{\nmatch chr {{", state.number)?;
-
-        for (chr, node) in state.transitions {
-            writeln!(output, "b'{}' => {{", chr.escape_default())?;
-
-            match node {
+        let chr_states = state.transitions.iter().map(|(chr, node)| {
+            let expr = match node {
                 Transition::Code(code) => {
                     let expr = match (render_fields, code.header_label) {
                         (false, Some(label)) => {
+                            // Code to write the label of the specifier.
+
                             let until = match code.header_label_until {
                                 Some(byte) => {
-                                    format!(
-                                        "
-                                        loop {{
-                                            if matches!(input.next(), None | Some((_, {}))) {{
+                                    // If `[label-until] C` is present, consume
+                                    // all bytes until the byte `C` is found.
+                                    quote! {
+                                        loop {
+                                            if matches!(input.next(), None | Some((_, #byte))) {
                                                 break;
-                                            }}
-                                        }}
-                                        ",
-                                        byte
-                                    )
+                                            }
+                                        }
+                                    }
                                 }
 
-                                None => String::new(),
+                                None => quote! {},
                             };
 
-                            format!("output.write_all(b{:?})?;{}", label, until)
+                            quote! {
+                                output.write_all(#label.as_bytes())?;
+                                #until
+                            }
                         }
 
-                        _ => code.code.replace("discard_spec!()", &discard_spec),
+                        _ => {
+                            // Code to replace a specifier with the value from
+                            // a history entry.
+
+                            let tokens: TokenStream = code.code.parse().unwrap();
+                            quote! { #tokens }
+                        }
                     };
 
-                    writeln!(output, "// '{}'\n{}\nstate = 0;\n}},", code.sequence, expr,)?;
+                    quote! {
+                        #expr
+                        state = 0;
+                    }
                 }
 
                 Transition::State(state) => {
-                    writeln!(output, "state = {};\n}},", state)?;
+                    quote! { state = #state }
+                }
+            };
+
+            quote! {
+                #chr => { #expr }
+            }
+        });
+
+        // When an unknown character is found:
+        // - state = 0: write the character to the output.
+        // - state ≠ 0: discards the current specifier.
+        let unknown_char = if state.number == 0 {
+            quote! { output.write_all(&[*chr])?; }
+        } else {
+            quote! { discard_spec!(); }
+        };
+
+        quote! {
+            #state_number => {
+                match chr {
+                    #(#chr_states)*
+
+                    _ => { #unknown_char }
                 }
             }
         }
+    });
 
-        let unknown_char = if state.number == 0 {
-            "{ output.write_all(&[*chr])?; }"
-        } else {
-            discard_spec.as_ref()
-        };
+    // `rusage_field!` is only available when `render_fields` is true.
+    let rusage_field_macro = if render_fields {
+        quote! {
+            /// Print a `rusage` field.
+            macro_rules! rusage_field {
+                ($field:ident) => {{
+                    if let State::Finished { rusage, .. } = &entry.state {
+                        w!(rusage.$field);
+                    }
+                }};
+            }
+        }
+    } else {
+        quote! {}
+    };
 
-        writeln!(
-            output,
-            "
-                        _ => {}
-                    }} // end of `match chr`
-                }}, // state = {}
-            ",
-            unknown_char, state.number
-        )?;
-    }
+    // State to discard the current specifier.
+    let discard_spec_state = states.last().unwrap().number + 1;
 
-    // Footer.
-    writeln!(
-        output,
-        "
-                    {discard_spec_state} => {{
-                        if let Some(bytes) = format.get(last_index_at_zero..chr_index) {{
+    // Parser code.
+    let code = quote! {{
+        let format = format.as_bytes();
+        let mut input = format.iter().enumerate();
+
+        let mut state = 0;
+        let mut last_index_at_zero = 0;
+
+        /// Write to the output.
+        macro_rules! w {
+            ($e:expr) => {
+                write!(&mut output, "{}", $e)?;
+            };
+
+            ($($e:tt)+) => {
+                write!(&mut output, $($e)+)?;
+            };
+        }
+
+        #rusage_field_macro
+
+        while let Some((chr_index, chr)) = input.next() {
+            if state == 0 {
+                last_index_at_zero = chr_index;
+            }
+
+            'current_chr: loop {
+                macro_rules! discard_spec {
+                    () => {{
+                        state = #discard_spec_state;
+                        continue 'current_chr;
+                    }}
+                }
+
+                match state {
+                    #(#match_branches)*
+
+                    #discard_spec_state => {
+                        if let Some(bytes) = format.get(last_index_at_zero..chr_index) {
                             output.write_all(bytes)?;
-                        }}
+                        }
 
                         state = 0;
                         continue 'current_chr;
-                    }},
+                    },
 
-                    _ => {discard_spec},
-                }}
+                    _ => { discard_spec!(); },
+                }
 
                 break 'current_chr;
-            }} // loop 'current_chr
-        ",
-        discard_spec_state = discard_spec_state,
-        discard_spec = discard_spec
-    )?;
+            }
+        }
 
-    Ok(())
+        // Copy raw format string if the last specifier was incompleted.
+        if state != 0 {
+            output.write_all(&format[last_index_at_zero..])?;
+        }
+    }};
+
+    write!(output, "{}", code)
 }
 
 /// Generates a parser from a list of specifiers.
 fn state_machine(specs: &[FormatSpec]) -> Vec<State> {
-    let mut states_map: BTreeMap<char, TreeNode> = BTreeMap::new();
+    let mut states_map: BTreeMap<u8, TreeNode> = BTreeMap::new();
     let mut state_counter = 0;
 
     for spec in specs {
         for seq in &spec.sequences {
             let mut map = &mut states_map;
-            let mut chars = seq.chars().peekable();
+            let mut chars = seq.bytes().peekable();
 
             while let Some(c) = chars.next() {
                 if chars.peek().is_some() {
@@ -198,11 +258,7 @@ fn state_machine(specs: &[FormatSpec]) -> Vec<State> {
 }
 
 /// Traverse a states tree and produces a flatten list of transitions.
-fn flatten_tree<'a>(
-    output: &mut Vec<State<'a>>,
-    state: usize,
-    tree: &BTreeMap<char, TreeNode<'a>>,
-) {
+fn flatten_tree<'a>(output: &mut Vec<State<'a>>, state: usize, tree: &BTreeMap<u8, TreeNode<'a>>) {
     let transitions = tree
         .iter()
         .map(|(chr, node)| {

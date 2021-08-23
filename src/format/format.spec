@@ -204,7 +204,7 @@
     //! [label] ELAPSED
     //! Elapsed real time in seconds.
     if let State::Finished { running_time: Some(time), .. } = &entry.state {
-        w!("{}.{:03}", time.as_secs(), time.subsec_millis())
+        w!("{}.{:03}", time.as_secs(), time.subsec_millis());
     }
 
 : %n
@@ -216,7 +216,7 @@
     //! [label] ELAPSED
     //! Elapsed real time in microseconds.
     if let State::Finished { running_time: Some(time), .. } = &entry.state {
-        w!("{}", time.as_micros())
+        w!("{}", time.as_micros());
     }
 
 : %w %(nvcsw)
