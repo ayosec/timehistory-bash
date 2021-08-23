@@ -41,6 +41,7 @@ builtin_metadata!(
     ",
 );
 
+mod bytetables;
 mod format;
 mod history;
 mod ipc;
