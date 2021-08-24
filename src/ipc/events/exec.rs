@@ -21,6 +21,7 @@ pub struct ExecEvent {
     pub pid: libc::pid_t,
     pub monotonic_time: libc::timespec,
     pub start_time: libc::timespec,
+    pub filename: OsString,
     pub args: Vec<OsString>,
 }
 
@@ -71,6 +72,7 @@ impl ExecEvent {
         let start_time = unsafe { reader.read_value()? };
 
         // Read arguments as C strings.
+        let filename = reader.read_cstr()?;
         let mut args = Vec::new();
         while reader.position() < reader.get_ref().len() as u64 {
             args.push(reader.read_cstr()?);
@@ -80,6 +82,7 @@ impl ExecEvent {
             pid,
             monotonic_time,
             start_time,
+            filename,
             args,
         })
     }

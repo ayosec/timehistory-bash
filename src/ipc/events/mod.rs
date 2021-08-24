@@ -203,10 +203,10 @@ mod tests {
             assert_eq!(event.monotonic_time.tv_nsec, 20000 + idx);
             assert_eq!(event.start_time.tv_sec, 1000000 + idx);
             assert_eq!(event.start_time.tv_nsec, 2000000 + idx);
+            assert_eq!(event.filename, OsString::from("/bin/ls"));
             assert_eq!(
                 event.args,
                 [
-                    OsString::from("/bin/ls"),
                     OsString::from("ls"),
                     OsString::from("-l"),
                     OsString::from(format!("file{}", idx)),

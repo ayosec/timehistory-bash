@@ -30,6 +30,7 @@ The following resource specifiers are accepted in the format string:
 |`%I`<br>`%(inblock)` | File system inputs. |
 |`%M`<br>`%(maxrss)` | Maximum resident set size in Kib. |
 |`%n` | Entry number in the history. |
+|`%N`<br>`%(filename)` | Filename of the executable. |
 |`%O`<br>`%(oublock)` | File system outputs. |
 |`%P`<br>`%(cpu)` | Percent of CPU this job got. |
 |`%R`<br>`%(minflt)` | Minor page faults (reclaims; no physical I/O involved). |

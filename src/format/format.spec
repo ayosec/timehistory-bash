@@ -60,11 +60,16 @@
 
 // Specifiers.
 
+: %N %(filename)
+    //! [label] FILENAME
+    //! Filename of the executable.
+    w!(EscapeArgument(entry.filename.as_bytes()));
+
 : %C %(args)
     //! [label] COMMAND
     //! Command name and arguments.
     let mut need_space = false;
-    for arg in entry.args.iter().skip(1) {
+    for arg in entry.args.iter() {
         if mem::replace(&mut need_space, true) {
             w!(" ");
         }

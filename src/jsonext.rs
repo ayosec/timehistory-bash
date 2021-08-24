@@ -2,10 +2,17 @@
 
 use crate::history::State;
 use serde::ser::{Serialize, SerializeMap, SerializeSeq, Serializer};
-use std::ffi::OsString;
+use std::ffi::{OsStr, OsString};
 use std::os::unix::ffi::OsStrExt;
 
-pub fn serialize_os_string<S: Serializer>(strings: &[OsString], ser: S) -> Result<S::Ok, S::Error> {
+pub fn serialize_os_string<S: Serializer>(string: &OsStr, ser: S) -> Result<S::Ok, S::Error> {
+    ser.serialize_str(&String::from_utf8_lossy(string.as_bytes()))
+}
+
+pub fn serialize_vec_os_string<S: Serializer>(
+    strings: &[OsString],
+    ser: S,
+) -> Result<S::Ok, S::Error> {
     let mut seq = ser.serialize_seq(Some(strings.len()))?;
     for s in strings {
         let s = String::from_utf8_lossy(s.as_bytes());

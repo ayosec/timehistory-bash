@@ -27,6 +27,9 @@ pub struct Entry {
     pub start_time: DateTime<Local>,
 
     #[serde(serialize_with = "crate::jsonext::serialize_os_string")]
+    pub filename: OsString,
+
+    #[serde(serialize_with = "crate::jsonext::serialize_vec_os_string")]
     pub args: Vec<OsString>,
 
     #[serde(serialize_with = "crate::jsonext::serialize_state")]
@@ -92,6 +95,7 @@ impl History {
             number: self.last_number,
             pid: event.pid,
             start_time: Local.timestamp(event.start_time.tv_sec, event.start_time.tv_nsec as u32),
+            filename: event.filename,
             args: event.args,
             state: State::Running {
                 start: event.monotonic_time,

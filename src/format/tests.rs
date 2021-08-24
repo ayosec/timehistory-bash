@@ -12,7 +12,8 @@ where
         number: 1234,
         pid: 10000,
         start_time: Local.timestamp(1000000000, 9999),
-        args: ["/bin/ls", "ls", "F"].iter().map(OsString::from).collect(),
+        filename: OsString::from("/bin/ls"),
+        args: ["ls", "F"].iter().map(OsString::from).collect(),
         state: State::Running {
             start: libc::timespec {
                 tv_sec: 0,
