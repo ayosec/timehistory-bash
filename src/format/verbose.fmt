@@ -12,5 +12,4 @@ Voluntary context switches:   %w
 Involuntary context switches: %c
 File system inputs:           %I
 File system outputs:          %O
-Page size (bytes):            %Z
 Exit status:                  %x

@@ -130,6 +130,6 @@ fn render_labels() {
     .unwrap();
     assert_eq!(
         std::str::from_utf8(&output),
-        Ok("PID - %(piMAX. RSS - TIME - \u{221e}")
+        Ok("PID - %(piMAXRSS - STARTED - \u{221e}")
     );
 }

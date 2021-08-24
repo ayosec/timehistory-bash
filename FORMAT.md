@@ -41,7 +41,6 @@ The following resource specifiers are accepted in the format string:
 |`%U`<br>`%(user_time)` | User time (seconds). |
 |`%w`<br>`%(nvcsw)` | Voluntary context switches. |
 |`%x`<br>`%(status)` | Exit status of command. |
-|`%Z`<br>`%(page_size)` | Page size. |
 
 ## Options
 

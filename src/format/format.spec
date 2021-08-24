@@ -85,22 +85,22 @@
     }
 
 : %F %(majflt)
-    //! [label]  MAJOR FLT.
+    //! [label] MAJFL
     //! Major page faults (required physical I/O).
     rusage_field!(ru_majflt);
 
 : %I %(inblock)
-    //! [label]  INPUT OPS.
+    //! [label] FSIN
     //! File system inputs.
     rusage_field!(ru_inblock);
 
 : %M %(maxrss)
-    //! [label] MAX. RSS
+    //! [label] MAXRSS
     //! Maximum resident set size in Kib.
     rusage_field!(ru_maxrss);
 
 : %O %(oublock)
-    //! [label] OUTPUT OPS.
+    //! [label] FSOUT
     //! File system outputs.
     rusage_field!(ru_oublock);
 
@@ -125,12 +125,12 @@
     }
 
 : %R %(minflt)
-    //! [label]  MINOR FLT.
+    //! [label]  MINFL
     //! Minor page faults (reclaims; no physical I/O involved).
     rusage_field!(ru_minflt);
 
 : %S %(sys_time)
-    //! [label] SYS. TIME
+    //! [label] SYSTIME
     //! System (kernel) time (seconds).
     if let State::Finished { rusage, .. } =  &entry.state {
         let time = &rusage.ru_stime;
@@ -138,7 +138,7 @@
     }
 
 : %(sys_time_us)
-    //! [label] SYS. TIME
+    //! [label] SYSTIME
     //! System (kernel) time (microseconds).
     if let State::Finished { rusage, .. } =  &entry.state {
         let time = &rusage.ru_stime;
@@ -146,7 +146,7 @@
     }
 
 : %Tt
-    //! [label] TERMINATION
+    //! [label] EXTYPE
     //! Termination type: normal, signalled, stopped.
     if let State::Finished { status, .. } = &entry.state {
         w!(
@@ -175,7 +175,7 @@
     }
 
 : %U %(user_time)
-    //! [label] USER TIME
+    //! [label] USERTIME
     //! User time (seconds).
     if let State::Finished { rusage, .. } =  &entry.state {
         let time = &rusage.ru_utime;
@@ -183,17 +183,12 @@
     }
 
 : %(user_time_us)
-    //! [label] USER TIME
+    //! [label] USERTIME
     //! User time (microseconds).
     if let State::Finished { rusage, .. } =  &entry.state {
         let time = &rusage.ru_utime;
         w!("{}", time.tv_sec * 1_000_000 + time.tv_usec);
     }
-
-: %Z %(page_size)
-    //! [label] PAGE SIZE
-   //! Page size.
-   w!(unsafe { libc::sysconf(libc::_SC_PAGESIZE) });
 
 : %c %(nivcsw)
     //! [label] IVCSW
@@ -237,7 +232,7 @@
     w!(entry.pid);
 
 : %(time:
-    //! [label] TIME
+    //! [label] STARTED
     //! [label-until] )
     //! [alias] %(time:FORMAT)
     //! Start time with a custom format.
