@@ -10,8 +10,8 @@ usable here.
 
 The following resource specifiers are accepted in the format string:
 
-| Specifiers | Description |
-|------------|-------------|
+| Specifiers | Header | Description |
+|------------|--------|-------------|
 %SPECS%
 
 ## Options

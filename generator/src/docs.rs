@@ -11,6 +11,7 @@ const TEMPLATE_MD: &str = include_str!("doc.md");
 #[derive(Eq, PartialOrd, PartialEq, Ord)]
 pub struct DocumentationItem<'a> {
     specs: String,
+    header_label: &'a str,
     doc: &'a str,
 }
 
@@ -26,6 +27,7 @@ pub fn collect_items(specs: &[super::FormatSpec]) -> Vec<DocumentationItem> {
 
             DocumentationItem {
                 specs,
+                header_label: format_spec.header_label.as_deref().unwrap_or(""),
                 doc: format_spec.description.as_ref(),
             }
         })
@@ -52,15 +54,26 @@ pub fn collect_items(specs: &[super::FormatSpec]) -> Vec<DocumentationItem> {
 pub fn generate_plain_text(mut output: impl Write, items: &[DocumentationItem]) -> io::Result<()> {
     const RIGHT_MARGIN: &str = "        ";
 
-    let spec_width = items.iter().map(|i| i.specs.len() + 4).max().unwrap_or(0);
+    let spec_width = items.iter().map(|i| i.specs.len() + 2).max().unwrap_or(0);
+
+    let label_width = items
+        .iter()
+        .map(|i| i.header_label.len() + 2)
+        .max()
+        .unwrap_or(0);
 
     let mut parts = TEMPLATE_TXT.split("%SPECS%\n");
 
+    // Before %SPECS%.
     output.write_all(parts.next().unwrap().as_bytes())?;
 
     for item in items {
-        // Sequences.
-        write!(&mut output, "{}{:2$}", RIGHT_MARGIN, item.specs, spec_width)?;
+        // Sequences and label.
+        write!(
+            &mut output,
+            "{}{:3$}{:4$}",
+            RIGHT_MARGIN, item.specs, item.header_label, spec_width, label_width
+        )?;
 
         // Description.
         for (idx, line) in item.doc.trim().split('\n').enumerate() {
@@ -68,7 +81,10 @@ pub fn generate_plain_text(mut output: impl Write, items: &[DocumentationItem]) 
                 writeln!(
                     &mut output,
                     "{}{:3$}{}",
-                    RIGHT_MARGIN, " ", line, spec_width
+                    RIGHT_MARGIN,
+                    " ",
+                    line,
+                    spec_width + label_width
                 )?;
             } else {
                 writeln!(&mut output, "{}", line)?;
@@ -76,6 +92,7 @@ pub fn generate_plain_text(mut output: impl Write, items: &[DocumentationItem]) 
         }
     }
 
+    // After %SPECS%.
     output.write_all(parts.next().unwrap().as_bytes())?;
 
     Ok(())
@@ -89,6 +106,7 @@ pub fn generate_plain_text(mut output: impl Write, items: &[DocumentationItem]) 
 pub fn generate_markdown(mut output: impl Write, items: &[DocumentationItem]) -> io::Result<()> {
     let mut parts = TEMPLATE_MD.split("%SPECS%\n");
 
+    // Before %SPECS%.
     output.write_all(parts.next().unwrap().as_bytes())?;
 
     for item in items {
@@ -102,6 +120,12 @@ pub fn generate_markdown(mut output: impl Write, items: &[DocumentationItem]) ->
 
         write!(&mut output, " | ")?;
 
+        if !item.header_label.is_empty() {
+            write!(&mut output, "`{}`", item.header_label)?;
+        }
+
+        write!(&mut output, " | ")?;
+
         // Description.
         for line in item.doc.trim().split('\n') {
             write!(&mut output, "{} ", line)?;
@@ -110,6 +134,7 @@ pub fn generate_markdown(mut output: impl Write, items: &[DocumentationItem]) ->
         writeln!(&mut output, "|")?;
     }
 
+    // After %SPECS%.
     output.write_all(parts.next().unwrap().as_bytes())?;
 
     Ok(())

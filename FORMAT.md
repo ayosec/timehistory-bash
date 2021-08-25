@@ -10,38 +10,38 @@ usable here.
 
 The following resource specifiers are accepted in the format string:
 
-| Specifiers | Description |
-|------------|-------------|
-|`\\` | A backslash. |
-|`\e` | An ESC character. |
-|`\n` | A newline. |
-|`\t` | A tab character. |
-|`\u{H*}` | A Unicode character. |
-|`%%` | A literal '%'. |
-|`%(pid)` | Process identifier. |
-|`%(sys_time_us)` | System (kernel) time (microseconds). |
-|`%(time:FORMAT)` | Start time with a custom format. |
-|`%(user_time_us)` | User time (microseconds). |
-|`%C`<br>`%(args)` | Command name and arguments. |
-|`%c`<br>`%(nivcsw)` | Involuntary context switches. |
-|`%E` | Elapsed real (wall clock) time in [hour:]min:sec. |
-|`%e` | Elapsed real time in seconds. |
-|`%F`<br>`%(majflt)` | Major page faults (required physical I/O). |
-|`%I`<br>`%(inblock)` | File system inputs. |
-|`%M`<br>`%(maxrss)` | Maximum resident set size in Kib. |
-|`%n` | Entry number in the history. |
-|`%N`<br>`%(filename)` | Filename of the executable. |
-|`%O`<br>`%(oublock)` | File system outputs. |
-|`%P`<br>`%(cpu)` | Percent of CPU this job got. |
-|`%R`<br>`%(minflt)` | Minor page faults (reclaims; no physical I/O involved). |
-|`%S`<br>`%(sys_time)` | System (kernel) time (seconds). |
-|`%Tn` | Signal number, if terminated by a signal. |
-|`%Tt` | Termination type: normal, signalled, stopped. |
-|`%Tx` | Exit code, if terminated normally. |
-|`%u` | Elapsed real time in microseconds. |
-|`%U`<br>`%(user_time)` | User time (seconds). |
-|`%w`<br>`%(nvcsw)` | Voluntary context switches. |
-|`%x`<br>`%(status)` | Exit status of command. |
+| Specifiers | Header | Description |
+|------------|--------|-------------|
+|`\\` |  | A backslash. |
+|`\e` |  | An ESC character. |
+|`\n` |  | A newline. |
+|`\t` |  | A tab character. |
+|`\u{H*}` |  | A Unicode character. |
+|`%%` |  | A literal '%'. |
+|`%(pid)` | `PID` | Process identifier. |
+|`%(sys_time_us)` | `SYSTIME` | System (kernel) time (microseconds). |
+|`%(time:FORMAT)` | `STARTED` | Start time with a custom format. |
+|`%(user_time_us)` | `USERTIME` | User time (microseconds). |
+|`%C`<br>`%(args)` | `COMMAND` | Command name and arguments. |
+|`%c`<br>`%(nivcsw)` | `IVCSW` | Involuntary context switches. |
+|`%E` | `ELAPSED` | Elapsed real (wall clock) time in [hour:]min:sec. |
+|`%e` | `ELAPSED` | Elapsed real time in seconds. |
+|`%F`<br>`%(majflt)` | `MAJFL` | Major page faults (required physical I/O). |
+|`%I`<br>`%(inblock)` | `FSIN` | File system inputs. |
+|`%M`<br>`%(maxrss)` | `MAXRSS` | Maximum resident set size in Kib. |
+|`%n` | `NUMBER` | Entry number in the history. |
+|`%N`<br>`%(filename)` | `FILENAME` | Filename of the executable. |
+|`%O`<br>`%(oublock)` | `FSOUT` | File system outputs. |
+|`%P`<br>`%(cpu)` | `%CPU` | Percent of CPU this job got. |
+|`%R`<br>`%(minflt)` | `MINFL` | Minor page faults (reclaims; no physical I/O involved). |
+|`%S`<br>`%(sys_time)` | `SYSTIME` | System (kernel) time (seconds). |
+|`%Tn` | `SIGNAL` | Signal number, if terminated by a signal. |
+|`%Tt` | `EXTYPE` | Termination type: normal, signalled, stopped. |
+|`%Tx` | `EXIT` | Exit code, if terminated normally. |
+|`%u` | `ELAPSED` | Elapsed real time in microseconds. |
+|`%U`<br>`%(user_time)` | `USERTIME` | User time (seconds). |
+|`%w`<br>`%(nvcsw)` | `VCSW` | Voluntary context switches. |
+|`%x`<br>`%(status)` | `STATUS` | Exit status of command. |
 
 ## Options
 
