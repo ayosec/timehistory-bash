@@ -1,0 +1,21 @@
+#!/bin/bash
+#
+# Load fields from the `[package]` section of the `Cargo.toml` file.
+#
+# For every field, exports a `PACKAGE_<NAME>` variable.
+
+METADATA_TABLE=''
+
+cat "$(git rev-parse --show-toplevel)/Cargo.toml" |
+  while read -r LINE
+  do
+    if [[ $LINE =~ ^\[(.*)\] ]]
+    then
+      METADATA_TABLE="${BASH_REMATCH[1]}"
+    elif [ "$METADATA_TABLE" = package ] &&
+         [[ $LINE =~ ^([^[:space:]]*)[[:space:]]*=[[:space:]]*\"(.*)\" ]]
+    then
+      METADATA_VARNAME="PACKAGE_${BASH_REMATCH[1]^^}"
+      printf 'export %s=%q\n' "$METADATA_VARNAME" "${BASH_REMATCH[2]}"
+    fi
+  done
