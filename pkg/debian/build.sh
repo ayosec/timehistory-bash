@@ -39,7 +39,6 @@ find target/release -maxdepth 1 -name '*.so' -exec cp -a {} "$DEST_BIN" \;
 
 mkdir -p "$DEST_DOC"
 cp -a ./*.md "$DEST_DOC"
-rename.ul .md .txt "$DEST_DOC"/*.md
 
 mkdir -p "$DEST_DEB"
 

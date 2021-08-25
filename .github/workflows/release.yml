@@ -22,54 +22,51 @@ jobs:
       upload_url: ${{ steps.create_release.outputs.upload_url }}
 
   build:
-    name: Binary for ${{ matrix.os }}
+    name: Package for ${{ matrix.os }}
     needs: release_draft
-    runs-on: ${{ matrix.os }}
+    runs-on: ubuntu-latest
     strategy:
       matrix:
-        os: [ ubuntu-18.04 ]
-        include:
-          - os: ubuntu-18.04
-            package: timehistory-bash-linux-ARCH.tar.gz
+        os:
+          - tarball
+          - debian:bullseye
+          - ubuntu:21.10
+          - fedora
+          - opensuse/tumbleweed
     steps:
       - uses: actions/checkout@v2
 
-      - name: Rust ${{ matrix.rust }}.
-        uses: actions-rs/toolchain@v1
-        with:
-          profile: minimal
-          toolchain: stable
-
-      - name: Build shared object.
-        uses: actions-rs/cargo@v1
-        with:
-          command: build
-          args: --release
-
-      - name: Test the shared object.
-        run: |
-          set -xe
-          strip --strip-debug ./target/release/libtimehistory_bash.so
-          enable -f ./target/release/libtimehistory_bash.so timehistory
-          uname -a
-          timehistory
-
       - name: Package.
+        id: package
         run: |
           set -xe
-          tar -czf ${{ matrix.package }} -C target/release libtimehistory_bash.so
+          IMAGE="${{ matrix.os }}"
+          if [ "$IMAGE" = tarball ]
+          then
+            IMAGE=debian:stable
+            MAKE_TARBALL=1
+          fi
 
-      - id: asset_name_generator
-        name: Set asset name
-        shell: bash
-        run: |
-          echo "::set-output name=name::${{ matrix.package }}" | sed "s/ARCH/$(uname -m)/g"
+          docker run --rm                        \
+            -v "$PWD:/source"                    \
+            -e MAKE_TARBALL="${MAKE_TARBALL:-0}" \
+            -w /source                           \
+            "$IMAGE"                             \
+            pkg/build-release.sh
 
-      - uses: actions/upload-release-asset@v1
-        with:
-          upload_url: ${{ needs.release_draft.outputs.upload_url }}
-          asset_path: ${{ matrix.package }}
-          asset_name: ${{ steps.asset_name_generator.outputs.name }}
-          asset_content_type: application/octet-stream
+      - name: Upload asset.
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          UPLOAD_URL: ${{ needs.release_draft.outputs.upload_url }}
+        run: |
+          set -ex
+          for ASSET in ASSETS/*
+          do
+            ASSET_NAME=$(basename "$ASSET")
+            curl                                          \
+              -X POST                                     \
+              -H "Authorization: token $GITHUB_TOKEN"     \
+              -H "Content-Type: application/octet-stream" \
+              --data-binary @"$ASSET"                     \
+              "${UPLOAD_URL/{*}?name=$ASSET_NAME"
+          done

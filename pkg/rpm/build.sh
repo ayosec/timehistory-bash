@@ -15,7 +15,9 @@ DEST=$(mktemp -d)
 envsubst < timehistory.spec > "$DEST/timehistory.spec"
 
 cd "$(git rev-parse --show-toplevel)"
-HOME="$DEST" rpmbuild --build-in-place -bb "$DEST/timehistory.spec"
+rpmbuild -bb --build-in-place             \
+  --define "_rpmdir $PWD/target/packages" \
+  "$DEST/timehistory.spec"
 
-mkdir -p target/packages
-find "$DEST/rpmbuild/RPMS" -type f -name '*.rpm' -exec cp -t target/packages {} +
+cd target/packages
+mv */*.rpm .
