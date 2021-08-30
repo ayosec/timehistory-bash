@@ -1,10 +1,12 @@
 //! Command history.
 
 use std::collections::VecDeque;
-use std::ffi::OsString;
+use std::ffi::{CStr, CString, OsString};
+use std::io::{self, Write};
 use std::sync::Mutex;
 use std::time::Duration;
 
+use bash_builtins::variables::DynamicVariable;
 use chrono::{DateTime, Local, TimeZone};
 use once_cell::sync::Lazy;
 
@@ -136,5 +138,34 @@ impl History {
             status,
             rusage,
         };
+    }
+}
+
+/// Dynamic variable to control the history limit.
+pub struct LimitVariable;
+
+impl DynamicVariable for LimitVariable {
+    fn get(&mut self) -> std::option::Option<CString> {
+        let size = match crate::history::HISTORY.try_lock() {
+            Ok(h) => h.size,
+            Err(_) => return None,
+        };
+
+        CString::new(size.to_string()).ok()
+    }
+
+    fn set(&mut self, value: &CStr) {
+        let size = match value.to_str().map(str::parse) {
+            Ok(Ok(n)) => n,
+
+            _ => {
+                let _ = writeln!(io::stderr(), "timehistory: invalid number");
+                return;
+            }
+        };
+
+        if let Ok(mut history) = crate::history::HISTORY.try_lock() {
+            history.set_size(size);
+        }
     }
 }

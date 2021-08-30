@@ -1,13 +1,15 @@
 //! timehistory bash builtin
 
-use bash_builtins::{builtin_metadata, Args, Builtin, BuiltinOptions};
+use bash_builtins::{builtin_metadata, variables, warning, Args, Builtin, BuiltinOptions};
 use bash_builtins::{Error::Usage, Result as BuiltinResult};
+
+use std::borrow::Cow;
 use std::io::{self, BufWriter, Write};
 
 builtin_metadata!(
     name = "timehistory",
     try_create = TimeHistory::new,
-    short_doc = "timehistory [-f FMT | -v | -j] [<n> | +<n>] | -s | -s SET | -R",
+    short_doc = "timehistory [-f FMT | -v | -j] [<n> | +<n>] | -s | -R",
     long_doc = "
         Displays information about the resources used by programs executed in
         the running shell.
@@ -17,7 +19,7 @@ builtin_metadata!(
                 \tinstead of the default value.
           -v\tUse the verbose format, similar to GNU time.
           -j\tPrint information as JSON format.
-          -s SET\tChange the value of a setting. See below.
+          -s\tPrint the current configuration settings.
           -R\tRemove all entries in the history.
 
         If <n> is given, it displays information for a specific history entry.
@@ -29,15 +31,10 @@ builtin_metadata!(
           Use '-f help' to get information about the formatting syntax.
 
         Settings:
-          The following settings are available:
+          The following shell variables can be used to change the configuration:
 
-            format\tDefault format string.
-            limit\tHistory limit.
-
-          To change a setting, use '-s name=value', where 'name' is any of the
-          previous values. Use one '-s' for every setting to change.
-
-          '-s' with no argument shows the current settings.
+            TIMEHISTORY_FORMAT\tDefault format string.
+            TIMEHISTORY_LIMIT\tHistory limit.
     ",
 );
 
@@ -55,10 +52,13 @@ use std::time::Duration;
 
 const DEFAULT_FORMAT: &str = "[header,table]%n\\t%(time:%X)\\t%P\\t%e\\t%C";
 
-struct TimeHistory {
-    /// Default format to print history entries.
-    default_format: String,
-}
+/// Shell variable to set the format string.
+const SHELL_VAR_FORMAT: &str = "TIMEHISTORY_FORMAT";
+
+/// Shell variable to set the history limit.
+const SHELL_VAR_LIMIT: &str = "TIMEHISTORY_LIMIT";
+
+struct TimeHistory;
 
 #[derive(BuiltinOptions)]
 enum Opt<'a> {
@@ -100,15 +100,15 @@ impl TimeHistory {
             return Err("shared buffer unavailable".into());
         }
 
+        variables::bind(SHELL_VAR_LIMIT, history::LimitVariable)?;
+
         procs::replace_functions()?;
 
         unsafe {
             history::OWNER_PID = libc::getpid();
         }
 
-        Ok(TimeHistory {
-            default_format: DEFAULT_FORMAT.into(),
-        })
+        Ok(TimeHistory)
     }
 }
 
@@ -161,6 +161,8 @@ impl Builtin for TimeHistory {
                 }
 
                 Opt::Setting(Some(setting)) => {
+                    warning!("-s is deprecated. Use the shell variables to change the settings");
+
                     let mut parts = setting.splitn(2, '=');
                     match (parts.next(), parts.next()) {
                         (Some("limit"), Some(value)) => {
@@ -168,11 +170,7 @@ impl Builtin for TimeHistory {
                         }
 
                         (Some("format"), Some(value)) => {
-                            self.default_format = if value.is_empty() {
-                                DEFAULT_FORMAT.into()
-                            } else {
-                                value.to_owned()
-                            };
+                            variables::set(SHELL_VAR_FORMAT, value)?;
                         }
 
                         (Some(name), _) => {
@@ -215,13 +213,13 @@ impl Builtin for TimeHistory {
         args.finished()?;
 
         let format = match &output_format {
-            None => Some(self.default_format.as_ref()),
-            Some(Output::Format(f)) => Some(f.as_ref()),
-            Some(Output::Verbose) => Some(include_str!("format/verbose.fmt")),
+            None => Some(Self::default_format()),
+            Some(Output::Format(f)) => Some(Cow::Borrowed(f.as_ref())),
+            Some(Output::Verbose) => Some(include_str!("format/verbose.fmt").into()),
             Some(Output::Json) => None,
         };
 
-        let format = format.map(format::FormatOptions::parse);
+        let format = format.as_deref().map(format::FormatOptions::parse);
 
         // Render output as a table.
         if let Some(options) = &format {
@@ -286,13 +284,19 @@ impl TimeHistory {
         write!(
             &mut output,
             "\
-             format = {}\n\
-             limit  = {}\n\
+             TIMEHISTORY_FORMAT = {}\n\
+             TIMEHISTORY_LIMIT  = {}\n\
             ",
-            self.default_format,
+            Self::default_format(),
             history.size(),
         )?;
 
         Ok(())
+    }
+
+    fn default_format() -> Cow<'static, str> {
+        variables::find_as_string(SHELL_VAR_FORMAT)
+            .and_then(|s| s.into_string().ok().map(Cow::Owned))
+            .unwrap_or_else(|| DEFAULT_FORMAT.into())
     }
 }
