@@ -29,8 +29,8 @@ jobs:
       matrix:
         os:
           - tarball
-          - debian:bullseye
-          - ubuntu:21.10
+          - debian
+          - ubuntu
           - fedora
           - opensuse/tumbleweed
     steps:
