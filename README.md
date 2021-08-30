@@ -189,7 +189,8 @@ with a function like this in the `~/.bashrc` file:
 ```bash
 _load_timehistory() {
     enable -f /usr/lib/bash/libtimehistory_bash.so timehistory
-    # use 'timehistory -s' to change configuration, if needed
+    # TIMEHISTORY_LIMIT=…
+    # TIMEHISTORY_FORMAT='…'
 }
 ```
 
@@ -207,8 +208,8 @@ automatically.
 Type `timehistory` to see all entries in the history list.
 
 Every entry is rendered using the default [format string]. To use a different
-[format string] you can change the configuration setting with `-s format='…'`,
-or add the `-f '…'` option in the command-line.
+[format string] you can use the `$TIMEHISTORY_FORMAT` shell variable, or add
+the `-f '…'` option in the command-line.
 
 To see a single entry, type `timehistory <n>`, where `<n>` is the number of the
 entry. If the number starts with a plus sign (`+`), the number is relative to
@@ -251,7 +252,7 @@ Type `timehistory --help` or `help timehistory` to see all available options:
 
 ```console
 $ timehistory --help
-timehistory: timehistory [-f FMT | -v | -j] [<n> | +<n>] | -s | -s SET | -R
+timehistory: timehistory [-f FMT | -v | -j] [<n> | +<n>] | -s | -R
     Displays information about the resources used by programs executed in
     the running shell.
 
@@ -260,7 +261,7 @@ timehistory: timehistory [-f FMT | -v | -j] [<n> | +<n>] | -s | -s SET | -R
                 instead of the default value.
       -v        Use the verbose format, similar to GNU time.
       -j        Print information as JSON format.
-      -s SET    Change the value of a setting. See below.
+      -s        Print the current configuration settings.
       -R        Remove all entries in the history.
 
     If <n> is given, it displays information for a specific history entry.
@@ -272,28 +273,23 @@ timehistory: timehistory [-f FMT | -v | -j] [<n> | +<n>] | -s | -s SET | -R
       Use '-f help' to get information about the formatting syntax.
 
     Settings:
-      The following settings are available:
+      The following shell variables can be used to change the configuration:
 
-        format  Default format string.
-        limit   History limit.
-
-      To change a setting, use '-s name=value', where 'name' is any of the
-      previous values. Use one '-s' for every setting to change.
-
-      '-s' with no argument shows the current settings.
+        TIMEHISTORY_FORMAT      Default format string.
+        TIMEHISTORY_LIMIT       History limit.
 ```
 
 ## Configuration
 
-timehistory accepts two configuration settings:
+timehistory configuration can be modified using shell variables:
 
-* `format`
+* `TIMEHISTORY_FORMAT`
 
     Set the default [format string] for history entries.
 
     This value is used when the timehistory is invoked without the `-f` option.
 
-* `limit`
+* `TIMEHISTORY_LIMIT`
 
     Set the maximum number of entries stored in the history list.
 
@@ -304,24 +300,8 @@ The current configuration settings are printed with `timehistory -s`:
 
 ```console
 $ timehistory -s
-format = [header,table]%n\t%(time:%X)\t%P\t%e\t%C
-limit  = 100
+TIMEHISTORY_FORMAT = [header,table]%n\t%(time:%X)\t%P\t%e\t%C
+TIMEHISTORY_LIMIT  = 100
 ```
-
-To change a setting, use `-s name=value`.
-
-```console
-$ timehistory -s format='%p' -s limit=10
-
-$ timehistory -s
-format = %p
-limit  = 10
-
-$ timehistory -s limit=500
-
-$ timehistory -s
-format = %p
-limit  = 500
-````
 
 [format string]: ./FORMAT.md
