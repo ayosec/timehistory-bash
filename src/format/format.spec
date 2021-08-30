@@ -83,7 +83,7 @@
     if let State::Finished { running_time: Some(time), .. } = &entry.state {
         let (secs, ms) = (time.as_secs(), time.subsec_millis());
         if secs >= 3660 {
-            w!("{}:{:02}:{:02}", secs / 3660, (secs % 3660) / 60, secs % 60);
+            w!("{}:{:02}:{:02}", secs / 3600, (secs % 3600) / 60, secs % 60);
         } else {
             w!("{}:{:02}.{:03}", secs / 60, secs % 60, ms);
         }
