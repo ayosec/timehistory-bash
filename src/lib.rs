@@ -33,8 +33,10 @@ builtin_metadata!(
         Settings:
           The following shell variables can be used to change the configuration:
 
-            TIMEHISTORY_FORMAT\tDefault format string.
-            TIMEHISTORY_LIMIT\tHistory limit.
+            TIMEHISTORY_FORMAT          Default format string.
+            TIMEHISTORY_LIMIT           History limit.
+            TIMEHISTORY_CMDLINE_LIMIT   Number of bytes to copy from the
+                                        command line.
     ",
 );
 
@@ -57,6 +59,9 @@ const SHELL_VAR_FORMAT: &str = "TIMEHISTORY_FORMAT";
 
 /// Shell variable to set the history limit.
 const SHELL_VAR_LIMIT: &str = "TIMEHISTORY_LIMIT";
+
+/// Shell variable to set the command line limit.
+const SHELL_VAR_CMDLINE_LIMIT: &str = "TIMEHISTORY_CMDLINE_LIMIT";
 
 struct TimeHistory;
 
@@ -101,6 +106,7 @@ impl TimeHistory {
         }
 
         variables::bind(SHELL_VAR_LIMIT, history::LimitVariable)?;
+        variables::bind(SHELL_VAR_CMDLINE_LIMIT, ipc::CmdLineLimitVariable)?;
 
         procs::replace_functions()?;
 
@@ -156,7 +162,12 @@ impl Builtin for TimeHistory {
                 Opt::Reset => action = Action::Reset,
 
                 Opt::Setting(None) => {
-                    self.print_config(&mut output, &history)?;
+                    self.print_config(
+                        &mut output,
+                        &history,
+                        ipc::global_shared_buffer(Duration::from_millis(100))
+                            .map(|buf| buf.max_cmdline()),
+                    )?;
                     exit_after_options = true;
                 }
 
@@ -280,16 +291,25 @@ impl Builtin for TimeHistory {
 }
 
 impl TimeHistory {
-    fn print_config(&self, mut output: impl Write, history: &history::History) -> io::Result<()> {
+    fn print_config(
+        &self,
+        mut output: impl Write,
+        history: &history::History,
+        max_cmdline: Option<usize>,
+    ) -> io::Result<()> {
         write!(
             &mut output,
             "\
-             TIMEHISTORY_FORMAT = {}\n\
-             TIMEHISTORY_LIMIT  = {}\n\
+             TIMEHISTORY_FORMAT        = {}\n\
+             TIMEHISTORY_LIMIT         = {}\n\
             ",
             Self::default_format(),
             history.size(),
         )?;
+
+        if let Some(max_cmdline) = max_cmdline {
+            writeln!(&mut output, "TIMEHISTORY_CMDLINE_LIMIT = {}", max_cmdline)?;
+        }
 
         Ok(())
     }

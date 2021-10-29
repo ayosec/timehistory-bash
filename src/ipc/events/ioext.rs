@@ -23,9 +23,11 @@ pub(super) trait WriteExt {
 
     /// Write a C string to `output`.
     ///
-    /// The size is written in 2 bytes before the string, and it is
-    /// limited to `u16::MAX`.
-    unsafe fn write_cstr(&mut self, ptr: *const libc::c_char) -> io::Result<()>;
+    /// The size is written as a `usize` before the string, and it is limited to
+    /// `limit`.
+    ///
+    /// Returns how many bytes are written.
+    unsafe fn write_cstr(&mut self, ptr: *const libc::c_char, limit: usize) -> io::Result<usize>;
 }
 
 impl<R: Read> ReadExt for R {
@@ -37,7 +39,7 @@ impl<R: Read> ReadExt for R {
     }
 
     fn read_cstr(&mut self) -> io::Result<OsString> {
-        let size = unsafe { self.read_value::<u16>()? as usize };
+        let size = unsafe { self.read_value::<usize>()? };
         let mut bytes = vec![0; size];
         self.read_exact(&mut bytes)?;
         Ok(OsString::from_vec(bytes))
@@ -51,23 +53,17 @@ impl<W: Write> WriteExt for W {
         self.write_all(slice)
     }
 
-    unsafe fn write_cstr(&mut self, ptr: *const libc::c_char) -> io::Result<()> {
-        let end: *const libc::c_char = libc::memchr(ptr.cast(), 0, u16::MAX as usize).cast();
-
+    unsafe fn write_cstr(&mut self, ptr: *const libc::c_char, limit: usize) -> io::Result<usize> {
         // String size.
-        let size = if end.is_null() {
-            u16::MAX
-        } else {
-            end.offset_from(ptr) as u16
-        };
+        let size = libc::strnlen(ptr.cast(), limit);
 
         self.write_value(&size)?;
 
         // String bytes.
-        let slice = std::slice::from_raw_parts(ptr.cast(), size as usize);
+        let slice = std::slice::from_raw_parts(ptr.cast(), size);
         self.write_all(slice)?;
 
-        Ok(())
+        Ok(size)
     }
 }
 

@@ -296,6 +296,13 @@ timehistory configuration can be modified using shell variables:
     When an entry is added to the history, and the number of entries exceeds
     this limit, the oldest entry is removed.
 
+* `TIMEHISTORY_CMDLINE_LIMIT`
+
+    Set the maximum number of bytes from the command line to be added to the
+    history.
+
+    If a command line exceeds this limit, then it is truncated.
+
 The current configuration settings are printed with `timehistory -s`:
 
 ```console

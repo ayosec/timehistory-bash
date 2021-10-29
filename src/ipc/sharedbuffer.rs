@@ -10,6 +10,9 @@ use std::time::Duration;
 /// Minimum size for the shared buffer.
 const MIN_BUFFER_SIZE: usize = 4 * 1024;
 
+/// Default value for `max_cmdline`.
+const DEFAULT_MAX_CMDLINE: usize = 512;
+
 /// Buffer that can be shared between multiple processes.
 pub struct SharedBuffer {
     buf: *mut libc::c_void,
@@ -23,6 +26,7 @@ pub struct SharedBuffer {
 #[repr(C)]
 struct SharedBufferHeader<const N: usize> {
     mutex: UnsafeCell<libc::pthread_mutex_t>,
+    max_cmdline: usize,
     cursor: usize,
     data: [u8; N],
 }
@@ -96,6 +100,7 @@ impl SharedBuffer {
 
             // Data for the underlying buffer.
             header.cursor = 0;
+            header.max_cmdline = DEFAULT_MAX_CMDLINE;
         }
 
         Ok(SharedBuffer { buf, len })
@@ -214,6 +219,16 @@ impl SharedBufferGuard<'_> {
 
         unsafe { slice::from_raw_parts_mut(self.data_mut().add(cursor), len) }
     }
+
+    /// Returns the maximum number of bytes to add in a single command line.
+    pub fn max_cmdline(&self) -> usize {
+        self.header().max_cmdline
+    }
+
+    /// Change the `max_cmdline` field.
+    pub fn set_max_cmdline(&mut self, value: usize) {
+        self.header_mut().max_cmdline = value;
+    }
 }
 
 impl Drop for SharedBufferGuard<'_> {
@@ -231,7 +246,7 @@ mod tests {
     use std::sync::{Arc, Barrier};
 
     const EXPECTED_HEADER_SIZE: usize =
-        mem::size_of::<libc::pthread_mutex_t>() + mem::size_of::<usize>();
+        mem::size_of::<libc::pthread_mutex_t>() + mem::size_of::<usize>() * 2;
 
     #[test]
     fn send_data() {

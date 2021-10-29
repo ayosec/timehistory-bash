@@ -146,6 +146,7 @@ mod tests {
     use super::*;
     use std::ffi::OsString;
     use std::io::Cursor;
+    use std::mem::discriminant;
 
     macro_rules! cstr {
         ($s:literal) => {
@@ -155,7 +156,7 @@ mod tests {
 
     #[test]
     fn send_exec_events() {
-        let mut output = vec![0; 256];
+        let mut output = vec![0; 512];
 
         // Send three events.
 
@@ -182,6 +183,7 @@ mod tests {
                         std::ptr::null(),
                     ]
                     .as_ptr(),
+                    usize::MAX,
                 )
                 .unwrap()
             };
@@ -195,7 +197,8 @@ mod tests {
         for idx in 0..3 {
             let event = match events.next() {
                 Some(Event::Exec(e)) => e,
-                _ => panic!("invalid event"),
+                Some(e) => panic!("invalid event: {:?}", discriminant(&e)),
+                None => panic!("no more events"),
             };
 
             assert_eq!(event.pid, 1000 + idx as libc::pid_t);

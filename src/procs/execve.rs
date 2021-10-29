@@ -42,6 +42,7 @@ unsafe fn write_event(
 ) -> io::Result<()> {
     let mut monotonic_time = MaybeUninit::zeroed();
     let mut start_time = MaybeUninit::zeroed();
+    let max_cmdline = buffer.max_cmdline();
 
     let pid = libc::getpid();
     libc::clock_gettime(libc::CLOCK_MONOTONIC, monotonic_time.as_mut_ptr());
@@ -54,6 +55,7 @@ unsafe fn write_event(
         start_time.assume_init(),
         filename,
         argv,
+        max_cmdline,
     )?;
 
     buffer.advance(written);

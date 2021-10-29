@@ -36,6 +36,7 @@ impl ExecEvent {
         start_time: libc::timespec,
         filename: *const libc::c_char,
         argv: *const *const libc::c_char,
+        mut max_cmdline: usize,
     ) -> io::Result<usize>
     where
         T: Write + Seek,
@@ -49,11 +50,12 @@ impl ExecEvent {
         output.write_value(&start_time)?;
 
         // filename and argv fields.
-        output.write_cstr(filename)?;
+        output.write_cstr(filename, max_cmdline)?;
 
         let mut arg = argv;
-        while !(*arg).is_null() {
-            output.write_cstr(*arg)?;
+        while max_cmdline > 0 && !(*arg).is_null() {
+            let written = output.write_cstr(*arg, max_cmdline)?;
+            max_cmdline = max_cmdline.saturating_sub(written);
             arg = arg.add(1);
         }
 
