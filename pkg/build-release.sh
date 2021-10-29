@@ -18,13 +18,10 @@ then
     debhelper        \
     git
 
-  curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- --profile minimal -y
-  source ~/.cargo/env
-
 elif command -v yum
 then
   yum install -y \
-    cargo        \
+    gcc          \
     gettext      \
     git          \
     rpm-build
@@ -32,7 +29,8 @@ then
 elif command -v zypper
 then
   zypper install -y \
-    cargo           \
+    curl            \
+    gcc             \
     gettext-runtime \
     git             \
     rpm-build
@@ -41,6 +39,9 @@ else
   echo "Unsupported system"
   exit 1
 fi
+
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- --profile minimal -y
+source ~/.cargo/env
 
 # Test the builtin in this system.
 cargo test
