@@ -242,9 +242,8 @@ fn state_machine(specs: &[FormatSpec]) -> Vec<State> {
                         sequence: seq,
                     });
 
-                    if map.insert(c, item).is_some() {
-                        panic!("conflicts: {}", seq);
-                    }
+                    let old = map.insert(c, item);
+                    assert!(old.is_none(), "conflicts: {}", seq);
                 }
             }
         }
