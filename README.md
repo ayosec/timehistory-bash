@@ -27,7 +27,7 @@ NUMBER  PID   ELAPSED  %CPU  MAXRSS  VCSW  COMMAND
 1       6651  0.046    100%  4428    2     sha512sum
 2       6650  0.045    16%   4488    320   head -c 10M /dev/zero
 
-$ timehistory  -v 1
+$ timehistory -v 1
 PID:                          6651
 Command:                      sha512sum
 Time:                         2021-08-22 09:29:08
@@ -191,6 +191,7 @@ _load_timehistory() {
     enable -f /usr/lib/bash/libtimehistory_bash.so timehistory
     # TIMEHISTORY_LIMIT=…
     # TIMEHISTORY_FORMAT='…'
+    # TIMEHISTORY_CMDLINE_LIMIT=…
 }
 ```
 
@@ -275,8 +276,10 @@ timehistory: timehistory [-f FMT | -v | -j] [<n> | +<n>] | -s | -R
     Settings:
       The following shell variables can be used to change the configuration:
 
-        TIMEHISTORY_FORMAT      Default format string.
-        TIMEHISTORY_LIMIT       History limit.
+        TIMEHISTORY_FORMAT          Default format string.
+        TIMEHISTORY_LIMIT           History limit.
+        TIMEHISTORY_CMDLINE_LIMIT   Number of bytes to copy from the
+                                    command line.
 ```
 
 ## Configuration
@@ -307,8 +310,9 @@ The current configuration settings are printed with `timehistory -s`:
 
 ```console
 $ timehistory -s
-TIMEHISTORY_FORMAT = [header,table]%n\t%(time:%X)\t%P\t%e\t%C
-TIMEHISTORY_LIMIT  = 100
+TIMEHISTORY_FORMAT        = [header,table]%n\t%(time:%X)\t%P\t%e\t%C
+TIMEHISTORY_LIMIT         = 500
+TIMEHISTORY_CMDLINE_LIMIT = 512
 ```
 
 [format string]: ./FORMAT.md
